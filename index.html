@@ -28,13 +28,67 @@ const COLORS = {
 };
 const ACCENTS = [COLORS.yellow, COLORS.green, COLORS.red, COLORS.blue];
 
-async function api(path, method = "GET", body = null, token = null) {
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API}${path}`, { method, headers, body: body ? JSON.stringify(body) : null });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Something went wrong");
-  return data;
+// ── Advanced API Function with Retry & Error Handling ──
+async function api(path, method = "GET", body = null, token = null, options = {}) {
+  const MAX_RETRIES = options.maxRetries || 3;
+  const TIMEOUT = options.timeout || 10000;
+  const RETRY_DELAY = options.retryDelay || 1000;
+  
+  let lastError;
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+      
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      
+      const res = await fetch(`${API}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : null,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        const errorMsg = data.detail || data.message || `Error ${res.status}`;
+        throw new Error(errorMsg);
+      }
+      
+      return data;
+    } catch (error) {
+      lastError = error;
+      
+      // Don't retry on client errors (4xx) except 429 (rate limit)
+      if (error instanceof TypeError && error.name === 'AbortError') {
+        lastError = new Error('Request timeout - server took too long to respond');
+      }
+      
+      // Retry logic
+      if (attempt < MAX_RETRIES) {
+        const shouldRetry = 
+          error.message.includes('timeout') ||
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('Network request failed');
+        
+        if (shouldRetry) {
+          const delay = RETRY_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+      
+      // Final error on last attempt
+      break;
+    }
+  }
+  
+  throw lastError || new Error('Request failed after multiple attempts');
 }
 
 const inputStyle = { width:"100%", background:"#0a0a0a", border:"1px solid #333", borderRadius:12, padding:"12px 16px", color:"#fff", fontSize:15, outline:"none", boxSizing:"border-box" };
@@ -42,7 +96,9 @@ const btnStyle = { width:"100%", padding:"14px", background:COLORS.yellow, color
 
 function Toast({ toast }) {
   if (!toast) return null;
-  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"#1a1a1a", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:12, fontSize:13, fontWeight:600, zIndex:9999 }}>{toast.msg}</div>;
+  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"#1a1a1a", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:12, fontSize:14, fontWeight:600, zIndex:9999, boxShadow:"0 4px 12px rgba(0,0,0,0.5)" }}>
+    {toast.msg}
+  </div>;
 }
 
 // ── Phone Signup Screen (Twilio) ──────────────────────────────
@@ -115,7 +171,7 @@ function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
           <div style={{ color:COLORS.muted, fontSize:13, marginBottom:16, textAlign:"center" }}>
             OTP sent to: {phone.startsWith('+')?phone:`+91${phone}`}
           </div>
-          {demoOtp && <div style={{ background:"#0a1a0a", border:`1px solid ${COLORS.green}`, borderRadius:12, padding:"12px 16px", color:COLORS.green, fontWeight:900, fontSize:22, letterSpacing:6, textAlign:"center", marginBottom:12 }}>Demo OTP: {demoOtp}</div>}
+          {demoOtp && <div style={{ background:"#0a1a0a", border:`1px solid ${COLORS.green}`, borderRadius:12, padding:"12px 16px", color:COLORS.green, fontWeight:900, fontSize:22, letterSpacing:4, textAlign:"center", marginBottom:16 }}>📱 {demoOtp}</div>}
           <input value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,''))} placeholder="4-digit OTP" maxLength={6} style={{...inputStyle, textAlign:"center", fontSize:24, letterSpacing:8}} />
           <button onClick={verifyOtp} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
             {loading ? "Verifying..." : "VERIFY →"}
@@ -224,9 +280,9 @@ function PostApp() {
 
   if(screen==="splash") return <SplashScreen />;
 
-  const handleLogin = async(email,password)=>{ try{ const d=await api("/auth/login","POST",{email,password}); localStorage.setItem("token",d.token); setToken(d.token); }catch(e){showToast(e.message,COLORS.red);} };
-  const handleSignup = async(name,email,password)=>{ try{ const d=await api("/auth/signup","POST",{name,email,password}); setPendingEmail(email); if(d.demo_otp)setDemoOtp(d.demo_otp); setScreen("otp"); }catch(e){showToast(e.message,COLORS.red);} };
-  const handleVerifyOtp = async(otp)=>{ try{ const d=await api("/auth/verify-otp","POST",{email:pendingEmail,otp}); localStorage.setItem("token",d.token); setToken(d.token); setDemoOtp(null); }catch(e){showToast(e.message,COLORS.red);} };
+  const handleLogin = async(email,password)=>{ try{ const d=await api("/auth/login","POST",{email,password}); localStorage.setItem("token",d.token); setToken(d.token); }catch(e){showToast(e.message, COLORS.red);} };
+  const handleSignup = async(name,email,password)=>{ try{ const d=await api("/auth/signup","POST",{name,email,password}); setPendingEmail(email); if(d.demo_otp)setDemoOtp(d.demo_otp); setScreen("otp"); }catch(e){showToast(e.message, COLORS.red);} };
+  const handleVerifyOtp = async(otp)=>{ try{ const d=await api("/auth/verify-otp","POST",{email:pendingEmail,otp}); localStorage.setItem("token",d.token); setToken(d.token); setDemoOtp(null); }catch(e){showToast(e.message, COLORS.red);} };
   const handlePhoneSuccess = (tok)=>{ localStorage.setItem("token",tok); setToken(tok); };
   const handleLogout = ()=>{ localStorage.removeItem("token"); setToken(null); setUser(null); setScreen("login"); };
 
@@ -319,7 +375,7 @@ function OtpScreen({ onVerify, email, demoOtp, toast }) {
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{fontSize:40,fontWeight:900,color:COLORS.yellow}}>Email Verify ✉️</div>
           <div style={{color:COLORS.muted,fontSize:14,marginTop:8}}>OTP sent to: {email}</div>
-          {demoOtp&&<div style={{marginTop:12,background:"#0a1a0a",border:`1px solid ${COLORS.green}`,borderRadius:12,padding:"10px 16px",color:COLORS.green,fontWeight:700,fontSize:22,letterSpacing:6,textAlign:"center"}}>Demo OTP: {demoOtp}</div>}
+          {demoOtp&&<div style={{marginTop:12,background:"#0a1a0a",border:`1px solid ${COLORS.green}`,borderRadius:12,padding:"10px 16px",color:COLORS.green,fontWeight:700,fontSize:22,letterSpacing:2,textAlign:"center"}}>📱 {demoOtp}</div>}
         </div>
         <input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="4-digit OTP" style={{...inputStyle,textAlign:"center",fontSize:24,letterSpacing:8}} maxLength={4} />
         <button onClick={()=>onVerify(otp)} style={{...btnStyle,marginTop:20}}>VERIFY →</button>
@@ -340,7 +396,7 @@ function HomeTab({ token, user, showToast }) {
       {loading&&<div style={{textAlign:"center",padding:40,color:COLORS.muted}}>Loading...</div>}
       {!loading&&posts.length===0&&<div style={{textAlign:"center",padding:60,color:COLORS.muted}}>No posts yet. Be the first! 🚀</div>}
       {posts.map(post=><PostCard key={post.id} post={post} user={user} onLike={handleLike} onDelete={handleDelete} onComment={handleComment} />)}
-      <button onClick={()=>setShowCompose(true)} style={{position:"fixed",bottom:90,right:20,width:60,height:60,background:COLORS.yellow,color:"#000",borderRadius:"50%",fontSize:32,fontWeight:900,border:"none",cursor:"pointer"}}>+</button>
+      <button onClick={()=>setShowCompose(true)} style={{position:"fixed",bottom:90,right:20,width:60,height:60,background:COLORS.yellow,color:"#000",borderRadius:"50%",fontSize:32,fontWeight:900,border:"none",cursor:"pointer",boxShadow:"0 4px 12px rgba(255,214,0,0.4)"}}>+</button>
       {showCompose&&<ComposeModal token={token} onClose={()=>setShowCompose(false)} onPost={()=>{setShowCompose(false);loadPosts();showToast("Posted! 🌍",COLORS.green);}} showToast={showToast} />}
     </div>
   );
@@ -362,7 +418,7 @@ function PostCard({ post, user, onLike, onDelete, onComment }) {
       {post.location&&<div style={{padding:"0 16px 10px",fontSize:12,color:COLORS.muted}}>📍 {post.location}</div>}
       <div style={{borderTop:"1px solid #222",display:"flex"}}>
         <div style={{flex:1,padding:"10px 0",display:"flex",justifyContent:"center",gap:8,alignItems:"center"}}>
-          {ACCENTS.map(c=><button key={c} onClick={()=>onLike(post.id,c)} style={{width:28,height:28,borderRadius:"50%",background:c,border:myLike?.color===c?"2px solid white":"2px solid transparent",cursor:"pointer"}} />)}
+          {ACCENTS.map(c=><button key={c} onClick={()=>onLike(post.id,c)} style={{width:28,height:28,borderRadius:"50%",background:c,border:myLike?.color===c?"2px solid white":"2px solid transparent",cursor:"pointer",transition:"all 0.2s"}}></button>)}
           <span style={{color:COLORS.muted,fontSize:13}}>{post.likes?.length||0}</span>
         </div>
         <button onClick={()=>setShowComments(!showComments)} style={{flex:1,padding:"10px 0",background:"none",border:"none",borderLeft:"1px solid #222",color:COLORS.muted,cursor:"pointer",fontSize:13}}>💬 {post.comments?.length||0}</button>
@@ -372,7 +428,7 @@ function PostCard({ post, user, onLike, onDelete, onComment }) {
           {post.comments?.map((c,i)=><div key={i} style={{fontSize:13,padding:"6px 0",borderBottom:"1px solid #1a1a1a"}}><span style={{fontWeight:700,color:COLORS.yellow}}>{c.user_name}: </span>{c.text}</div>)}
           <div style={{display:"flex",gap:8,marginTop:10}}>
             <input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Comment..." style={{...inputStyle,flex:1,padding:"8px 12px",fontSize:13}} onKeyDown={e=>{if(e.key==="Enter"){onComment(post.id,commentText);setCommentText("");}}} />
-            <button onClick={()=>{if(commentText.trim()){onComment(post.id,commentText);setCommentText("");}}} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer"}}>Send</button>
+            <button onClick={()=>{if(commentText.trim()){onComment(post.id,commentText);setCommentText("");}}} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Post</button>
           </div>
         </div>
       )}
@@ -393,7 +449,7 @@ function ComposeModal({ token, onClose, onPost, showToast }) {
         <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="What's on your mind? 🌍" style={{...inputStyle,height:120,resize:"none"}} />
         <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="📍 Location (optional)" style={{...inputStyle,marginTop:10,fontSize:13}} />
         <div style={{display:"flex",gap:10,margin:"14px 0"}}>
-          {ACCENTS.map(c=><button key={c} onClick={()=>setAccent(c)} style={{width:40,height:40,borderRadius:12,background:c,border:accent===c?"3px solid white":"3px solid transparent",cursor:"pointer"}} />)}
+          {ACCENTS.map(c=><button key={c} onClick={()=>setAccent(c)} style={{width:40,height:40,borderRadius:12,background:c,border:accent===c?"3px solid white":"3px solid transparent",cursor:"pointer",transition:"all 0.2s"}}></button>)}
         </div>
         <button onClick={handlePost} style={btnStyle}>SHARE GLOBALLY 🌍</button>
       </div>
@@ -523,7 +579,7 @@ function ProfileTab({ token, user, setUser, showToast }) {
             <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="Location" style={{...inputStyle,marginBottom:10}} />
             <textarea value={about} onChange={e=>setAbout(e.target.value)} placeholder="About yourself..." style={{...inputStyle,height:80,resize:"none",marginBottom:10}} />
             <div style={{display:"flex",gap:8,marginBottom:14}}>
-              {ACCENTS.map(c=><button key={c} onClick={()=>setAvatarBg(c)} style={{width:36,height:36,borderRadius:10,background:c,border:avatarBg===c?"3px solid white":"3px solid transparent",cursor:"pointer"}} />)}
+              {ACCENTS.map(c=><button key={c} onClick={()=>setAvatarBg(c)} style={{width:36,height:36,borderRadius:10,background:c,border:avatarBg===c?"3px solid white":"3px solid transparent",cursor:"pointer",transition:"all 0.2s"}}></button>)}
             </div>
             <button onClick={save} style={btnStyle}>Save ✓</button>
             <button onClick={()=>setEditing(false)} style={{...btnStyle,background:"#333",color:"#fff",marginTop:8}}>Cancel</button>
