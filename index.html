@@ -260,7 +260,14 @@ function SplashScreen() {
 
 function PostApp() {
   const [screen, setScreen] = useState("splash");
-  const [token, setToken] = useState(()=>localStorage.getItem("token")||null);
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem("token") || null;
+    } catch (e) {
+      console.error("Token Read Error:", e);
+      return null;
+    }
+  });
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("home");
   const [toast, setToast] = useState(null);
