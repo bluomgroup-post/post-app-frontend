@@ -21,7 +21,7 @@ input, textarea, button { font-family: inherit; }
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-const API = "https://post-app-backend-dqtp.onrender.com/api";
+const API = "https://post-app-backend-dqtp.onrender.com/api".replace(/\/$/, "");
 const COLORS = {
   yellow: "#FFD600", green: "#00C853", red: "#FF1744", blue: "#2979FF",
   dark: "#0A0A0A", card: "#111111", text: "#FFFFFF", muted: "#666666",
@@ -42,7 +42,7 @@ const btnStyle = { width:"100%", padding:"14px", background:COLORS.yellow, color
 
 function Toast({ toast }) {
   if (!toast) return null;
-  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"#1a1a1a", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:16, zIndex:9999, fontWeight:700, fontSize:14, whiteSpace:"nowrap" }}>{toast.msg}</div>;
+  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"#1a1a1a", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:12, fontSize:13, fontWeight:600, zIndex:9999 }}>{toast.msg}</div>;
 }
 
 // ── Phone Signup Screen (Twilio) ──────────────────────────────
@@ -115,7 +115,7 @@ function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
           <div style={{ color:COLORS.muted, fontSize:13, marginBottom:16, textAlign:"center" }}>
             OTP sent to: {phone.startsWith('+')?phone:`+91${phone}`}
           </div>
-          {demoOtp && <div style={{ background:"#0a1a0a", border:`1px solid ${COLORS.green}`, borderRadius:12, padding:"12px 16px", color:COLORS.green, fontWeight:900, fontSize:22, letterSpacing:6, textAlign:"center", marginBottom:16 }}>{demoOtp}</div>}
+          {demoOtp && <div style={{ background:"#0a1a0a", border:`1px solid ${COLORS.green}`, borderRadius:12, padding:"12px 16px", color:COLORS.green, fontWeight:900, fontSize:22, letterSpacing:6, textAlign:"center", marginBottom:12 }}>Demo OTP: {demoOtp}</div>}
           <input value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,''))} placeholder="4-digit OTP" maxLength={6} style={{...inputStyle, textAlign:"center", fontSize:24, letterSpacing:8}} />
           <button onClick={verifyOtp} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
             {loading ? "Verifying..." : "VERIFY →"}
@@ -188,7 +188,7 @@ function SplashScreen() {
             <rect x="10" y="0" width="100" height="100" rx="22" ry="22"/>
           </clipPath>
         </defs>
-        <g clip-path="url(#rounded)">
+        <g clipPath="url(#rounded)">
           <rect x="10" y="0"  width="50" height="50" fill="#FFD600"/>
           <rect x="60" y="0"  width="50" height="50" fill="#00C853"/>
           <rect x="10" y="50" width="50" height="50" fill="#FF1744"/>
@@ -225,7 +225,7 @@ function PostApp() {
   if(screen==="splash") return <SplashScreen />;
 
   const handleLogin = async(email,password)=>{ try{ const d=await api("/auth/login","POST",{email,password}); localStorage.setItem("token",d.token); setToken(d.token); }catch(e){showToast(e.message,COLORS.red);} };
-  const handleSignup = async(name,email,password)=>{ try{ const d=await api("/auth/signup","POST",{name,email,password}); setPendingEmail(email); if(d.demo_otp)setDemoOtp(d.demo_otp); setScreen("otp"); showToast("OTP sent! Check your email",COLORS.green); }catch(e){showToast(e.message,COLORS.red);} };
+  const handleSignup = async(name,email,password)=>{ try{ const d=await api("/auth/signup","POST",{name,email,password}); setPendingEmail(email); if(d.demo_otp)setDemoOtp(d.demo_otp); setScreen("otp"); }catch(e){showToast(e.message,COLORS.red);} };
   const handleVerifyOtp = async(otp)=>{ try{ const d=await api("/auth/verify-otp","POST",{email:pendingEmail,otp}); localStorage.setItem("token",d.token); setToken(d.token); setDemoOtp(null); }catch(e){showToast(e.message,COLORS.red);} };
   const handlePhoneSuccess = (tok)=>{ localStorage.setItem("token",tok); setToken(tok); };
   const handleLogout = ()=>{ localStorage.removeItem("token"); setToken(null); setUser(null); setScreen("login"); };
@@ -319,7 +319,7 @@ function OtpScreen({ onVerify, email, demoOtp, toast }) {
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{fontSize:40,fontWeight:900,color:COLORS.yellow}}>Email Verify ✉️</div>
           <div style={{color:COLORS.muted,fontSize:14,marginTop:8}}>OTP sent to: {email}</div>
-          {demoOtp&&<div style={{marginTop:12,background:"#0a1a0a",border:`1px solid ${COLORS.green}`,borderRadius:12,padding:"10px 16px",color:COLORS.green,fontWeight:700,fontSize:22,letterSpacing:6}}>Demo: {demoOtp}</div>}
+          {demoOtp&&<div style={{marginTop:12,background:"#0a1a0a",border:`1px solid ${COLORS.green}`,borderRadius:12,padding:"10px 16px",color:COLORS.green,fontWeight:700,fontSize:22,letterSpacing:6,textAlign:"center"}}>Demo OTP: {demoOtp}</div>}
         </div>
         <input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="4-digit OTP" style={{...inputStyle,textAlign:"center",fontSize:24,letterSpacing:8}} maxLength={4} />
         <button onClick={()=>onVerify(otp)} style={{...btnStyle,marginTop:20}}>VERIFY →</button>
@@ -340,7 +340,7 @@ function HomeTab({ token, user, showToast }) {
       {loading&&<div style={{textAlign:"center",padding:40,color:COLORS.muted}}>Loading...</div>}
       {!loading&&posts.length===0&&<div style={{textAlign:"center",padding:60,color:COLORS.muted}}>No posts yet. Be the first! 🚀</div>}
       {posts.map(post=><PostCard key={post.id} post={post} user={user} onLike={handleLike} onDelete={handleDelete} onComment={handleComment} />)}
-      <button onClick={()=>setShowCompose(true)} style={{position:"fixed",bottom:90,right:20,width:60,height:60,background:COLORS.yellow,color:"#000",borderRadius:"50%",fontSize:32,fontWeight:900,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 20px rgba(255,214,0,0.4)",zIndex:40}}>+</button>
+      <button onClick={()=>setShowCompose(true)} style={{position:"fixed",bottom:90,right:20,width:60,height:60,background:COLORS.yellow,color:"#000",borderRadius:"50%",fontSize:32,fontWeight:900,border:"none",cursor:"pointer"}}>+</button>
       {showCompose&&<ComposeModal token={token} onClose={()=>setShowCompose(false)} onPost={()=>{setShowCompose(false);loadPosts();showToast("Posted! 🌍",COLORS.green);}} showToast={showToast} />}
     </div>
   );
@@ -371,8 +371,8 @@ function PostCard({ post, user, onLike, onDelete, onComment }) {
         <div style={{borderTop:"1px solid #222",padding:12}}>
           {post.comments?.map((c,i)=><div key={i} style={{fontSize:13,padding:"6px 0",borderBottom:"1px solid #1a1a1a"}}><span style={{fontWeight:700,color:COLORS.yellow}}>{c.user_name}: </span>{c.text}</div>)}
           <div style={{display:"flex",gap:8,marginTop:10}}>
-            <input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Comment..." style={{...inputStyle,flex:1,padding:"8px 12px",fontSize:13}} onKeyDown={e=>{if(e.key==="Enter"&&commentText.trim()){onComment(post.id,commentText);setCommentText("");}}} />
-            <button onClick={()=>{if(commentText.trim()){onComment(post.id,commentText);setCommentText("");}}} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 14px",fontWeight:700,cursor:"pointer",fontSize:13}}>→</button>
+            <input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Comment..." style={{...inputStyle,flex:1,padding:"8px 12px",fontSize:13}} onKeyDown={e=>{if(e.key==="Enter"){onComment(post.id,commentText);setCommentText("");}}} />
+            <button onClick={()=>{if(commentText.trim()){onComment(post.id,commentText);setCommentText("");}}} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer"}}>Send</button>
           </div>
         </div>
       )}
@@ -435,7 +435,7 @@ function FriendsTab({ token, user, showToast }) {
         {data.pending_incoming.map(r=>(
           <div key={r.id} style={{background:COLORS.card,border:"1px solid #333",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
             <div style={{flex:1,fontWeight:600,fontSize:14}}>{r.from_id}</div>
-            <button onClick={()=>accept(r.from_id)} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12,marginRight:6}}>Accept</button>
+            <button onClick={()=>accept(r.from_id)} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12,marginRight:8}}>Accept</button>
             <button onClick={()=>decline(r.from_id)} style={{background:"#333",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Decline</button>
           </div>
         ))}
