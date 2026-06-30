@@ -7,6 +7,31 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAC8GKj46mzVZgkz74AwhrJQMkXl3K__rg",
+    authDomain: "post-81975.firebaseapp.com",
+    projectId: "post-81975",
+    storageBucket: "post-81975.firebasestorage.app",
+    messagingSenderId: "238770541402",
+    appId: "1:238770541402:web:b419039b377b2ea65ad963",
+    measurementId: "G-SGMNLVXR3C"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  auth.languageCode = 'en';
+
+  window.firebaseAuth = auth;
+  window.RecaptchaVerifier = RecaptchaVerifier;
+  window.signInWithPhoneNumber = signInWithPhoneNumber;
+  window.firebaseReady = true;
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #0a0a0a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -18,664 +43,396 @@ input, textarea, button { font-family: inherit; }
 </head>
 <body>
 <div id="root"></div>
+<div id="recaptcha-container"></div>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-const API = "https://post-app-backend-dqtp.onrender.com/api".replace(/\/$/, "");
+const API = "https://post-app-backend-dqtp.onrender.com/api";
+
 const COLORS = {
   yellow: "#FFD600", green: "#00C853", red: "#FF1744", blue: "#2979FF",
   dark: "#0A0A0A", card: "#111111", text: "#FFFFFF", muted: "#666666",
 };
 const ACCENTS = [COLORS.yellow, COLORS.green, COLORS.red, COLORS.blue];
 
-// ── Advanced API Function with Retry & Error Handling ──
-async function api(path, method = "GET", body = null, token = null, options = {}) {
-  const MAX_RETRIES = options.maxRetries || 3;
-  const TIMEOUT = options.timeout || 10000;
-  const RETRY_DELAY = options.retryDelay || 1000;
-
-  let lastError;
-
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
-
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`${API}${path}`, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : null,
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        const errorMsg = data.detail || data.message || `Error ${res.status}`;
-        throw new Error(errorMsg);
-      }
-
-      return data;
-    } catch (error) {
-      lastError = error;
-
-      // FIX: AbortError check was wrong — error.name is the correct property, not instanceof TypeError
-      if (error.name === 'AbortError') {
-        lastError = new Error('Request timeout - server took too long to respond');
-        break; // No point retrying a timeout caused by AbortController
-      }
-
-      if (attempt < MAX_RETRIES) {
-        const shouldRetry =
-          error.message.includes('timeout') ||
-          error.message.includes('Failed to fetch') ||
-          error.message.includes('Network request failed');
-
-        if (shouldRetry) {
-          const delay = RETRY_DELAY * Math.pow(2, attempt - 1);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-      }
-
-      break;
-    }
-  }
-
-  throw lastError || new Error('Request failed after multiple attempts');
+async function api(path, method = "GET", body = null, token = null) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API}${path}`, {
+    method, headers,
+    body: body ? JSON.stringify(body) : null,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Something went wrong");
+  return data;
 }
 
-const inputStyle = { width:"100%", background:"#0a0a0a", border:"1px solid #333", borderRadius:12, padding:"12px 16px", color:"#fff", fontSize:15, outline:"none", boxSizing:"border-box" };
-const btnStyle = { width:"100%", padding:"14px", background:COLORS.yellow, color:"#000", fontWeight:900, fontSize:15, border:"none", borderRadius:14, cursor:"pointer", letterSpacing:1 };
-
-function Toast({ toast }) {
-  if (!toast) return null;
-  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"#1a1a1a", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:12, fontSize:14, fontWeight:600, zIndex:9999, boxShadow:"0 4px 12px rgba(0,0,0,0.5)" }}>
-    {toast.msg}
-  </div>;
-}
-
-// ── Phone Signup Screen (Twilio) ──────────────────────────────
+// ── Phone OTP Screen ─────────────────────────────────────────
 function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
-  const [step, setStep] = useState("phone");
+  const [step, setStep] = useState("phone"); // phone | otp | name
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmResult, setConfirmResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [demoOtp, setDemoOtp] = useState(null);
+
+  const setupRecaptcha = () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new window.RecaptchaVerifier(window.firebaseAuth, 'recaptcha-container', {
+        'size': 'invisible',
+        'callback': () => {}
+      });
+    }
+  };
 
   const sendOtp = async () => {
-    if (!phone || phone.length < 10) { showToast("Enter a valid phone number", COLORS.red); return; }
+    if (!phone || phone.length < 10) {
+      showToast("Enter a valid phone number", COLORS.red);
+      return;
+    }
     setLoading(true);
     try {
-      const phoneNum = phone.startsWith('+') ? phone : `+91${phone}`;
-      const data = await api("/auth/phone-signup-init", "POST", { phone: phoneNum });
-      if (data.demo_otp) setDemoOtp(data.demo_otp);
+      setupRecaptcha();
+      const phoneNumber = phone.startsWith('+') ? phone : `+91${phone}`;
+      const result = await window.signInWithPhoneNumber(window.firebaseAuth, phoneNumber, window.recaptchaVerifier);
+      setConfirmResult(result);
       setStep("otp");
-      showToast("OTP sent! 📱", COLORS.green);
-    } catch(e) { showToast(e.message, COLORS.red); }
+      showToast("OTP sent successfully!", COLORS.green);
+    } catch (e) {
+      showToast(e.message || "Failed to send OTP", COLORS.red);
+      window.recaptchaVerifier = null;
+    }
     setLoading(false);
   };
 
   const verifyOtp = async () => {
-    // FIX: was checking otp.length < 4, but OTPs can be 4-6 digits
-    if (!otp || otp.length < 4) { showToast("Enter OTP", COLORS.red); return; }
+    if (!otp || otp.length < 6) {
+      showToast("Enter 6-digit OTP", COLORS.red);
+      return;
+    }
     setLoading(true);
     try {
-      const phoneNum = phone.startsWith('+') ? phone : `+91${phone}`;
-      await api("/auth/phone-verify-init", "POST", { phone: phoneNum, otp });
-      setStep("details");
-      showToast("Phone verified! ✅", COLORS.green);
-    } catch(e) { showToast(e.message, COLORS.red); }
+      await confirmResult.confirm(otp);
+      setStep("name");
+    } catch (e) {
+      showToast("Invalid OTP", COLORS.red);
+    }
     setLoading(false);
   };
 
   const createAccount = async () => {
-    if (!name.trim() || password.length < 6) { showToast("Enter name and password (min 6)", COLORS.red); return; }
+    if (!name.trim() || !password.trim()) {
+      showToast("Enter name and password", COLORS.red);
+      return;
+    }
     setLoading(true);
     try {
-      const phoneNum = phone.startsWith('+') ? phone : `+91${phone}`;
-      const data = await api("/auth/phone-signup", "POST", { phone: phoneNum, name, password });
-      onSuccess(data.token);
-    } catch(e) { showToast(e.message, COLORS.red); }
+      const phoneNumber = phone.startsWith('+') ? phone : `+91${phone}`;
+      const email = `${phoneNumber.replace('+', '')}@phone.postapp.com`;
+      const data = await api("/auth/signup", "POST", { name, email, password });
+      // Auto verify since Firebase already verified phone
+      const verifyData = await api("/auth/verify-otp", "POST", { email, otp: data.demo_otp || "0000" });
+      if (verifyData.token) {
+        onSuccess(verifyData.token);
+      } else {
+        // Try direct login
+        const loginData = await api("/auth/login", "POST", { email, password });
+        onSuccess(loginData.token);
+      }
+    } catch (e) {
+      showToast(e.message, COLORS.red);
+    }
     setLoading(false);
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#111", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
-          <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>
-            {step==="phone" ? "Join the world 🌐" : step==="otp" ? "Verify OTP" : "Create Account"}
+    <div style={{ minHeight: "100vh", background: COLORS.dark, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: "#111", border: `1px solid ${COLORS.yellow}`, borderRadius: 24, padding: 32, width: "100%", maxWidth: 400 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 56, fontWeight: 900, color: COLORS.yellow, letterSpacing: 8 }}>POST</div>
+          <div style={{ color: COLORS.muted, fontSize: 14, marginTop: 8 }}>
+            {step === "phone" ? "Sign up with Phone" : step === "otp" ? "Verify OTP" : "Create Account"}
           </div>
         </div>
 
-        {step==="phone" && <>
-          <div style={{ display:"flex", gap:8 }}>
-            <div style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:12, padding:"12px 16px", color:"#fff", fontSize:15, minWidth:70, textAlign:"center" }}>+91</div>
-            <input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} placeholder="Phone number" type="tel" maxLength={10} style={{...inputStyle, flex:1}} />
-          </div>
-          <button onClick={sendOtp} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
-            {loading ? "Sending..." : "SEND OTP →"}
-          </button>
-        </>}
-
-        {step==="otp" && <>
-          <div style={{ color:COLORS.muted, fontSize:13, marginBottom:16, textAlign:"center" }}>
-            OTP sent to: {phone.startsWith('+')?phone:`+91${phone}`}
-          </div>
-          {demoOtp && <div style={{ background:"#0a1a0a", border:`1px solid ${COLORS.green}`, borderRadius:12, padding:"12px 16px", color:COLORS.green, fontWeight:900, fontSize:22, letterSpacing:4, textAlign:"center", marginBottom:16 }}>📱 {demoOtp}</div>}
-          {/* FIX: Added onKeyDown Enter to trigger verify */}
-          <input value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,''))} placeholder="Enter OTP" maxLength={6} style={{...inputStyle, textAlign:"center", fontSize:24, letterSpacing:8}}
-            onKeyDown={e=>e.key==="Enter"&&verifyOtp()} />
-          <button onClick={verifyOtp} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
-            {loading ? "Verifying..." : "VERIFY →"}
-          </button>
-        </>}
-
-        {step==="details" && <>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={inputStyle} />
-          <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password (min 6)" type="password" style={{...inputStyle, marginTop:12}} />
-          <button onClick={createAccount} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
-            {loading ? "Creating..." : "CREATE ACCOUNT →"}
-          </button>
-        </>}
-
-        <div style={{ textAlign:"center", marginTop:16 }}>
-          <span onClick={onBack} style={{ color:COLORS.muted, cursor:"pointer", fontSize:14 }}>← Back</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Phone Login Screen ────────────────────────────────────────
-function PhoneLoginScreen({ onBack, onSuccess, showToast }) {
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const login = async () => {
-    if (!phone || !password) { showToast("Enter phone and password", COLORS.red); return; }
-    setLoading(true);
-    try {
-      const phoneNum = phone.startsWith('+') ? phone : `+91${phone}`;
-      const data = await api("/auth/phone-login", "POST", { phone: phoneNum, password });
-      onSuccess(data.token);
-    } catch(e) { showToast(e.message, COLORS.red); }
-    setLoading(false);
-  };
-
-  return (
-    <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#111", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
-          <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>Sign In with Phone</div>
-        </div>
-        <div style={{ display:"flex", gap:8 }}>
-          <div style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:12, padding:"12px 16px", color:"#fff", fontSize:15, minWidth:70, textAlign:"center" }}>+91</div>
-          <input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} placeholder="Phone number" type="tel" maxLength={10} style={{...inputStyle, flex:1}} />
-        </div>
-        <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password" style={{...inputStyle, marginTop:12}}
-          onKeyDown={e=>e.key==="Enter"&&login()} />
-        <button onClick={login} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
-          {loading ? "Logging in..." : "LOGIN →"}
-        </button>
-        <div style={{ textAlign:"center", marginTop:16 }}>
-          <span onClick={onBack} style={{ color:COLORS.muted, cursor:"pointer", fontSize:14 }}>← Back</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Forgot Password Screen ────────────────────────────────────
-function ForgotPasswordScreen({ onBack, onSuccess, showToast }) {
-  const [step, setStep] = useState("email"); // email | otp | newpass
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [demoOtp, setDemoOtp] = useState(null);
-
-  const sendOtp = async () => {
-    if (!email.trim()) { showToast("Email डालें", COLORS.red); return; }
-    setLoading(true);
-    try {
-      const data = await api("/auth/forgot-password", "POST", { email });
-      if (data.demo_otp) setDemoOtp(data.demo_otp);
-      setStep("otp");
-      showToast("OTP sent! ✉️", COLORS.green);
-    } catch(e) { showToast(e.message, COLORS.red); }
-    setLoading(false);
-  };
-
-  const verifyOtp = async () => {
-    if (!otp || otp.length < 4) { showToast("OTP डालें", COLORS.red); return; }
-    setLoading(true);
-    try {
-      await api("/auth/forgot-password-verify", "POST", { email, otp });
-      setStep("newpass");
-      showToast("OTP verified! ✅", COLORS.green);
-    } catch(e) { showToast(e.message, COLORS.red); }
-    setLoading(false);
-  };
-
-  const resetPassword = async () => {
-    if (newPassword.length < 6) { showToast("Password कम से कम 6 characters का हो", COLORS.red); return; }
-    if (newPassword !== confirmPassword) { showToast("Passwords match नहीं कर रहे", COLORS.red); return; }
-    setLoading(true);
-    try {
-      await api("/auth/reset-password", "POST", { email, otp, new_password: newPassword });
-      showToast("Password reset हो गया! 🎉", COLORS.green);
-      setTimeout(() => onSuccess(), 1200);
-    } catch(e) { showToast(e.message, COLORS.red); }
-    setLoading(false);
-  };
-
-  const stepLabel = { email: "Forgot Password?", otp: "Enter OTP", newpass: "Set New Password" };
-
-  return (
-    <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#111", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
-          <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>{stepLabel[step]}</div>
-        </div>
-
-        {/* Step indicator */}
-        <div style={{ display:"flex", gap:6, marginBottom:24, justifyContent:"center" }}>
-          {["email","otp","newpass"].map((s,i) => (
-            <div key={s} style={{ height:4, flex:1, borderRadius:2, background: ["email","otp","newpass"].indexOf(step) >= i ? COLORS.yellow : "#333", transition:"background 0.3s" }} />
-          ))}
-        </div>
-
-        {step === "email" && <>
-          <input
-            value={email}
-            onChange={e=>setEmail(e.target.value)}
-            placeholder="Registered email"
-            type="email"
-            style={inputStyle}
-            onKeyDown={e=>e.key==="Enter"&&sendOtp()}
-          />
-          <button onClick={sendOtp} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
-            {loading ? "Sending..." : "SEND OTP →"}
-          </button>
-        </>}
-
-        {step === "otp" && <>
-          <div style={{ color:COLORS.muted, fontSize:13, marginBottom:16, textAlign:"center" }}>
-            OTP sent to: <span style={{ color:"#ccc" }}>{email}</span>
-          </div>
-          {demoOtp && (
-            <div style={{ background:"#0a1a0a", border:`1px solid ${COLORS.green}`, borderRadius:12, padding:"12px 16px", color:COLORS.green, fontWeight:900, fontSize:22, letterSpacing:4, textAlign:"center", marginBottom:16 }}>
-              📱 {demoOtp}
+        {step === "phone" && (
+          <>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 12, padding: "12px 16px", color: "#fff", fontSize: 15, minWidth: 70, textAlign: "center" }}>+91</div>
+              <input value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="Phone number" type="tel" maxLength={10} style={{ ...inputStyle, flex: 1 }} />
             </div>
-          )}
-          <input
-            value={otp}
-            onChange={e=>setOtp(e.target.value.replace(/\D/g,''))}
-            placeholder="Enter OTP"
-            maxLength={6}
-            style={{...inputStyle, textAlign:"center", fontSize:24, letterSpacing:8}}
-            onKeyDown={e=>e.key==="Enter"&&verifyOtp()}
-          />
-          <button onClick={verifyOtp} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
-            {loading ? "Verifying..." : "VERIFY →"}
-          </button>
-          <div style={{ textAlign:"center", marginTop:12 }}>
-            <span onClick={sendOtp} style={{ color:COLORS.muted, fontSize:13, cursor:"pointer" }}>
-              OTP नहीं मिला? <span style={{ color:COLORS.yellow }}>Resend</span>
-            </span>
-          </div>
-        </>}
+            <button onClick={sendOtp} disabled={loading} style={{ ...btnStyle, marginTop: 20, opacity: loading ? 0.7 : 1 }}>
+              {loading ? "Sending..." : "SEND OTP →"}
+            </button>
+          </>
+        )}
 
-        {step === "newpass" && <>
-          <input
-            value={newPassword}
-            onChange={e=>setNewPassword(e.target.value)}
-            placeholder="New password (min 6)"
-            type="password"
-            style={inputStyle}
-          />
-          <input
-            value={confirmPassword}
-            onChange={e=>setConfirmPassword(e.target.value)}
-            placeholder="Confirm new password"
-            type="password"
-            style={{...inputStyle, marginTop:12}}
-            onKeyDown={e=>e.key==="Enter"&&resetPassword()}
-          />
-          {/* Password match indicator */}
-          {confirmPassword.length > 0 && (
-            <div style={{ fontSize:12, marginTop:6, color: newPassword===confirmPassword ? COLORS.green : COLORS.red }}>
-              {newPassword===confirmPassword ? "✓ Passwords match" : "✗ Passwords don't match"}
+        {step === "otp" && (
+          <>
+            <div style={{ color: COLORS.muted, fontSize: 13, marginBottom: 16, textAlign: "center" }}>
+              OTP sent to: {phone.startsWith('+') ? phone : `+91${phone}`}
             </div>
-          )}
-          <button onClick={resetPassword} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
-            {loading ? "Resetting..." : "RESET PASSWORD →"}
-          </button>
-        </>}
+            <input value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} placeholder="6-digit OTP" maxLength={6} style={inputStyle} />
+            <button onClick={verifyOtp} disabled={loading} style={{ ...btnStyle, marginTop: 20, opacity: loading ? 0.7 : 1 }}>
+              {loading ? "Verifying..." : "VERIFY →"}
+            </button>
+          </>
+        )}
 
-        <div style={{ textAlign:"center", marginTop:20 }}>
-          <span onClick={onBack} style={{ color:COLORS.muted, cursor:"pointer", fontSize:14 }}>← Back to Login</span>
+        {step === "name" && (
+          <>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Your Name" style={inputStyle} />
+            <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Create Password" type="password" style={{ ...inputStyle, marginTop: 12 }} />
+            <button onClick={createAccount} disabled={loading} style={{ ...btnStyle, marginTop: 20, opacity: loading ? 0.7 : 1 }}>
+              {loading ? "Creating account..." : "CREATE ACCOUNT →"}
+            </button>
+          </>
+        )}
+
+        <div style={{ textAlign: "center", marginTop: 16 }}>
+          <span onClick={onBack} style={{ color: COLORS.muted, cursor: "pointer", fontSize: 14 }}>← Back</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Main App ──────────────────────────────────────────────────
-function SplashScreen() {
-  return (
-    <div style={{minHeight:"100vh",background:"#0A0A0A",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}>
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="160" height="200">
-        <defs>
-          <clipPath id="rounded">
-            <rect x="10" y="0" width="100" height="100" rx="22" ry="22"/>
-          </clipPath>
-        </defs>
-        <g clipPath="url(#rounded)">
-          <rect x="10" y="0"  width="50" height="50" fill="#FFD600"/>
-          <rect x="60" y="0"  width="50" height="50" fill="#00C853"/>
-          <rect x="10" y="50" width="50" height="50" fill="#FF1744"/>
-          <rect x="60" y="50" width="50" height="50" fill="#2979FF"/>
-        </g>
-        <text x="60" y="135" fontFamily="'Arial Black', Impact, sans-serif" fontWeight="900" fontSize="26" textAnchor="middle" letterSpacing="2">
-          <tspan fill="#FFD600">P</tspan><tspan fill="#00C853">O</tspan><tspan fill="#FF1744">S</tspan><tspan fill="#2979FF">T</tspan>
-        </text>
-      </svg>
-    </div>
-  );
-}
-
+// ── Main App ────────────────────────────────────────────────
 function PostApp() {
-  // FIX: Start with "loading" if token exists, "splash" if not
-  // This prevents the splash → login flash when user is already logged in
-  const savedToken = (() => { try { return localStorage.getItem("token") || null; } catch(e) { return null; } })();
-  const [screen, setScreen] = useState(savedToken ? "loading" : "splash");
-  const [token, setToken] = useState(savedToken);
+  const [screen, setScreen] = useState("login");
+  const [token, setToken] = useState(() => localStorage.getItem("token") || null);
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("home");
   const [toast, setToast] = useState(null);
   const [pendingEmail, setPendingEmail] = useState("");
   const [demoOtp, setDemoOtp] = useState(null);
 
-  const showToast = (msg, color=COLORS.yellow) => { setToast({msg,color}); setTimeout(()=>setToast(null),3000); };
+  const showToast = (msg, color = COLORS.yellow) => {
+    setToast({ msg, color });
+    setTimeout(() => setToast(null), 3000);
+  };
 
-  // FIX: Only show splash → login when there is NO saved token
-  useEffect(()=>{
-    if (screen !== "splash") return;
-    const t = setTimeout(()=>{ setScreen("login"); }, 2000);
-    return ()=>clearTimeout(t);
-  },[screen]);
-
-  useEffect(()=>{
-    if(token){
-      api("/auth/me","GET",null,token)
-        .then(u=>{ setUser(u); setScreen("app"); })
-        .catch(()=>{ try{localStorage.removeItem("token");}catch(e){} setToken(null); setScreen("login"); });
+  useEffect(() => {
+    if (token) {
+      api("/auth/me", "GET", null, token)
+        .then(u => { setUser(u); setScreen("app"); })
+        .catch(() => { localStorage.removeItem("token"); setToken(null); setScreen("login"); });
     }
-  },[token]);
+  }, [token]);
 
-  if(screen==="splash" || screen==="loading") return <SplashScreen />;
-
-  // FIX: handleLogin now wraps localStorage in try-catch (consistent with other handlers)
-  const handleLogin = async(email,password)=>{
-    try{
-      const d=await api("/auth/login","POST",{email,password});
-      try { localStorage.setItem("token",d.token); } catch(e) { console.error("Token Save Error:",e); }
-      setToken(d.token);
-    } catch(e){ showToast(e.message, COLORS.red); }
+  const handleLogin = async (email, password) => {
+    try {
+      const data = await api("/auth/login", "POST", { email, password });
+      localStorage.setItem("token", data.token);
+      setToken(data.token);
+    } catch (e) { showToast(e.message, COLORS.red); }
   };
 
-  const handleSignup = async(name,email,password)=>{
-    try{
-      const d=await api("/auth/signup","POST",{name,email,password});
+  const handleSignup = async (name, email, password) => {
+    try {
+      const data = await api("/auth/signup", "POST", { name, email, password });
       setPendingEmail(email);
-      if(d.demo_otp) setDemoOtp(d.demo_otp);
+      if (data.demo_otp) setDemoOtp(data.demo_otp);
       setScreen("otp");
-    } catch(e){ showToast(e.message, COLORS.red); }
+      showToast("OTP sent! Check your email.", COLORS.green);
+    } catch (e) { showToast(e.message, COLORS.red); }
   };
 
-  const handleVerifyOtp = async(otp)=>{
-    try{
-      const d=await api("/auth/verify-otp","POST",{email:pendingEmail,otp});
-      try { localStorage.setItem("token",d.token); } catch(e) { console.error("Token Save Error:",e); }
-      setToken(d.token);
+  const handleVerifyOtp = async (otp) => {
+    try {
+      const data = await api("/auth/verify-otp", "POST", { email: pendingEmail, otp });
+      localStorage.setItem("token", data.token);
+      setToken(data.token);
       setDemoOtp(null);
-    } catch(e){ showToast(e.message, COLORS.red); }
+    } catch (e) { showToast(e.message, COLORS.red); }
   };
 
-  const handlePhoneSuccess = (tok)=>{
-    try{ localStorage.setItem("token",tok); } catch(e){ console.error("Token Save Error:",e); }
+  const handlePhoneSuccess = (tok) => {
+    localStorage.setItem("token", tok);
     setToken(tok);
   };
 
-  const handleLogout = ()=>{
-    try{ localStorage.removeItem("token"); } catch(e){ console.error("Token Remove Error:",e); }
-    setToken(null); setUser(null); setScreen("login");
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setToken(null);
+    setUser(null);
+    setScreen("login");
   };
 
-  if(screen==="forgot-password") return <ForgotPasswordScreen onBack={()=>setScreen("login")} onSuccess={()=>setScreen("login")} showToast={showToast} />;
-  if(screen==="login") return <LoginScreen onLogin={handleLogin} onGoSignup={()=>setScreen("signup")} onGoPhone={()=>setScreen("phone-login")} onGoPhoneSignup={()=>setScreen("phone-signup")} onGoForgotPassword={()=>setScreen("forgot-password")} toast={toast} />;
-  if(screen==="signup") return <SignupScreen onSignup={handleSignup} onGoLogin={()=>setScreen("login")} showToast={showToast} toast={toast} />;
-  if(screen==="otp") return <OtpScreen onVerify={handleVerifyOtp} onBack={()=>setScreen("signup")} email={pendingEmail} demoOtp={demoOtp} toast={toast} />;
-  if(screen==="phone-signup") return <PhoneSignupScreen onBack={()=>setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} />;
-  if(screen==="phone-login") return <PhoneLoginScreen onBack={()=>setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} />;
-  if(!user) return <div style={{minHeight:"100vh",background:"#000",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24}}>Loading...</div>;
+  if (screen === "login") return <LoginScreen onLogin={handleLogin} onGoSignup={() => setScreen("signup")} onGoPhone={() => setScreen("phone")} toast={toast} showToast={showToast} />;
+  if (screen === "signup") return <SignupScreen onSignup={handleSignup} onGoLogin={() => setScreen("login")} toast={toast} />;
+  if (screen === "phone") return <PhoneSignupScreen onBack={() => setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} />;
+  if (screen === "otp") return <OtpScreen onVerify={handleVerifyOtp} email={pendingEmail} demoOtp={demoOtp} toast={toast} />;
+  if (!user) return <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 24 }}>Loading...</div>;
 
   return (
-    <div style={{minHeight:"100vh",background:COLORS.dark,color:COLORS.text,paddingBottom:80}}>
-      <Toast toast={toast} />
-      <div style={{position:"sticky",top:0,background:"#050505",borderBottom:"1px solid #222",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:50}}>
-        <span style={{fontSize:28,fontWeight:900,letterSpacing:6,color:COLORS.yellow}}>POST</span>
-        <button onClick={handleLogout} style={{color:COLORS.muted,fontSize:12,background:"none",border:"none",cursor:"pointer"}}>Logout</button>
+    <div style={{ minHeight: "100vh", background: COLORS.dark, color: COLORS.text, paddingBottom: 80 }}>
+      {toast && (
+        <div style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", border: `1px solid ${toast.color}`, color: toast.color, padding: "12px 24px", borderRadius: 16, zIndex: 999, fontWeight: 700, fontSize: 14 }}>
+          {toast.msg}
+        </div>
+      )}
+      <div style={{ position: "sticky", top: 0, background: "#050505", borderBottom: "1px solid #222", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", zIndex: 50 }}>
+        <span style={{ fontSize: 28, fontWeight: 900, letterSpacing: 6, color: COLORS.yellow }}>POST</span>
+        <button onClick={handleLogout} style={{ color: COLORS.muted, fontSize: 12, background: "none", border: "none", cursor: "pointer" }}>Logout</button>
       </div>
-      {tab==="home"&&<HomeTab token={token} user={user} showToast={showToast} />}
-      {tab==="discover"&&<DiscoverTab token={token} user={user} showToast={showToast} />}
-      {tab==="friends"&&<FriendsTab token={token} user={user} showToast={showToast} />}
-      {tab==="messages"&&<MessagesTab token={token} user={user} showToast={showToast} />}
-      {tab==="profile"&&<ProfileTab token={token} user={user} setUser={setUser} showToast={showToast} />}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#050505",borderTop:"1px solid #222",display:"flex",justifyContent:"space-around",padding:"10px 0",zIndex:50}}>
-        {[["home","🏠"],["discover","🔍"],["friends","👥"],["messages","💬"],["profile","👤"]].map(([id,icon])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{fontSize:24,background:"none",border:"none",cursor:"pointer",opacity:tab===id?1:0.4,transform:tab===id?"scale(1.2)":"scale(1)",transition:"all 0.2s"}}>{icon}</button>
+      {tab === "home" && <HomeTab token={token} user={user} showToast={showToast} />}
+      {tab === "discover" && <DiscoverTab token={token} user={user} showToast={showToast} />}
+      {tab === "friends" && <FriendsTab token={token} user={user} showToast={showToast} />}
+      {tab === "messages" && <MessagesTab token={token} user={user} showToast={showToast} />}
+      {tab === "profile" && <ProfileTab token={token} user={user} setUser={setUser} showToast={showToast} />}
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#050505", borderTop: "1px solid #222", display: "flex", justifyContent: "space-around", padding: "10px 0", zIndex: 50 }}>
+        {[["home","🏠"],["discover","🔍"],["friends","👥"],["messages","💬"],["profile","👤"]].map(([id, icon]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ fontSize: 24, background: "none", border: "none", cursor: "pointer", opacity: tab === id ? 1 : 0.4, transform: tab === id ? "scale(1.2)" : "scale(1)", transition: "all 0.2s" }}>
+            {icon}
+          </button>
         ))}
       </div>
     </div>
   );
 }
 
-function LoginScreen({ onLogin, onGoSignup, onGoPhone, onGoPhoneSignup, onGoForgotPassword, toast }) {
+function LoginScreen({ onLogin, onGoSignup, onGoPhone, toast }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showLogin, setShowLogin] = useState(false);
   return (
-    <div style={{minHeight:"100vh",background:COLORS.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <Toast toast={toast} />
-      <div style={{background:"#111",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{fontSize:56,fontWeight:900,color:COLORS.yellow,letterSpacing:8}}>POST</div>
-          {/* FIX: Added missing subtitle text */}
-          <div style={{color:COLORS.muted,fontSize:14,marginTop:8}}>
-            {showLogin ? "Welcome back 👋" : "Share with the world 🌍"}
-          </div>
+    <div style={{ minHeight: "100vh", background: COLORS.dark, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      {toast && <div style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", border: `1px solid ${toast.color}`, color: toast.color, padding: "12px 24px", borderRadius: 16, zIndex: 999, fontWeight: 700 }}>{toast.msg}</div>}
+      <div style={{ background: "#111", border: `1px solid ${COLORS.yellow}`, borderRadius: 24, padding: 32, width: "100%", maxWidth: 400 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 56, fontWeight: 900, color: COLORS.yellow, letterSpacing: 8 }}>POST</div>
+          <div style={{ color: COLORS.muted, fontSize: 14, marginTop: 8 }}>Connect with the world</div>
         </div>
-        {!showLogin ? <>
-          <button onClick={onGoPhoneSignup} style={{...btnStyle,marginBottom:10}}>Create Account with Phone</button>
-          <button onClick={onGoSignup} style={{...btnStyle,background:"#1a1a1a",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`}}>Create Account with Email</button>
-          <div style={{textAlign:"center",marginTop:20,color:COLORS.muted,fontSize:14}}>
-            Already have an account? <span onClick={()=>setShowLogin(true)} style={{color:COLORS.yellow,cursor:"pointer",fontWeight:700}}>Log in</span>
-          </div>
-        </> : <>
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" type="email" style={inputStyle} />
-          <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password" style={{...inputStyle,marginTop:12}} onKeyDown={e=>e.key==="Enter"&&onLogin(email,password)} />
-          {/* Forgot Password link */}
-          <div style={{textAlign:"right",marginTop:8}}>
-            <span onClick={onGoForgotPassword} style={{color:COLORS.yellow,fontSize:13,cursor:"pointer",fontWeight:600}}>Forgot Password?</span>
-          </div>
-          <button onClick={()=>onLogin(email,password)} style={{...btnStyle,marginTop:16}}>LOG IN →</button>
-          <button onClick={onGoPhone} style={{...btnStyle,marginTop:10,background:"#1a1a1a",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`}}>Log in with Phone</button>
-          <div style={{textAlign:"center",marginTop:16,color:COLORS.muted,fontSize:14}}>
-            <span onClick={()=>setShowLogin(false)} style={{color:COLORS.yellow,cursor:"pointer",fontWeight:700}}>← Back</span>
-          </div>
-        </>}
-      </div>
-    </div>
-  );
-}
-
-function SignupScreen({ onSignup, onGoLogin, showToast, toast }) {
-  const [name,setName]=useState("");
-  const [email,setEmail]=useState("");
-  const [password,setPassword]=useState("");
-  // FIX: Added loading state to prevent double-submit
-  const [loading,setLoading]=useState(false);
-
-  const handleSignup = async () => {
-    // FIX: Added input validation
-    if (!name.trim()) { showToast("Name डालें", COLORS.red); return; }
-    if (!email.includes("@") || !email.includes(".")) { showToast("Valid email डालें", COLORS.red); return; }
-    if (password.length < 6) { showToast("Password कम से कम 6 characters का हो", COLORS.red); return; }
-    if (loading) return;
-    setLoading(true);
-    await onSignup(name, email, password);
-    setLoading(false);
-  };
-
-  return (
-    <div style={{minHeight:"100vh",background:COLORS.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <Toast toast={toast} />
-      <div style={{background:"#111",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{fontSize:56,fontWeight:900,color:COLORS.yellow,letterSpacing:8}}>POST</div>
-          <div style={{color:COLORS.muted,fontSize:14,marginTop:8}}>Join the world 🌐</div>
+        <button onClick={onGoPhone} style={{ ...btnStyle, background: "#1a1a1a", color: COLORS.yellow, border: `1px solid ${COLORS.yellow}` }}>SIGN IN WITH PHONE →</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
+          <div style={{ flex: 1, height: 1, background: "#333" }} />
+          <span style={{ color: COLORS.muted, fontSize: 12 }}>OR</span>
+          <div style={{ flex: 1, height: 1, background: "#333" }} />
         </div>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={inputStyle} />
-        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" type="email" style={{...inputStyle,marginTop:12}} />
-        <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password (min 6)" type="password" style={{...inputStyle,marginTop:12}}
-          onKeyDown={e=>e.key==="Enter"&&handleSignup()} />
-        <button onClick={handleSignup} disabled={loading} style={{...btnStyle,marginTop:20,opacity:loading?0.7:1}}>
-          {loading ? "Creating..." : "CREATE ACCOUNT →"}
-        </button>
-        <div style={{textAlign:"center",marginTop:16,color:COLORS.muted,fontSize:14}}>
-          Already have an account? <span onClick={onGoLogin} style={{color:COLORS.yellow,cursor:"pointer",fontWeight:700}}>Login</span>
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" style={inputStyle} />
+        <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" type="password" style={{ ...inputStyle, marginTop: 12 }} />
+        <button onClick={() => onLogin(email, password)} style={{ ...btnStyle, marginTop: 20 }}>LOGIN →</button>
+        <div style={{ textAlign: "center", marginTop: 16, color: COLORS.muted, fontSize: 14 }}>
+          New here? <span onClick={onGoSignup} style={{ color: COLORS.yellow, cursor: "pointer", fontWeight: 700 }}>Sign Up</span>
         </div>
       </div>
     </div>
   );
 }
 
-function OtpScreen({ onVerify, onBack, email, demoOtp, toast }) {
-  const [otp,setOtp]=useState("");
-  const [loading,setLoading]=useState(false);
-
-  const handleVerify = async () => {
-    if (!otp.trim()) return;
-    setLoading(true);
-    await onVerify(otp);
-    setLoading(false);
-  };
-
+function SignupScreen({ onSignup, onGoLogin, toast }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   return (
-    <div style={{minHeight:"100vh",background:COLORS.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <Toast toast={toast} />
-      <div style={{background:"#111",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
-        <div style={{textAlign:"center",marginBottom:24}}>
-          <div style={{fontSize:40,fontWeight:900,color:COLORS.yellow}}>Email Verify ✉️</div>
-          <div style={{color:COLORS.muted,fontSize:14,marginTop:8}}>OTP sent to: {email}</div>
-          {demoOtp&&<div style={{marginTop:12,background:"#0a1a0a",border:`1px solid ${COLORS.green}`,borderRadius:12,padding:"10px 16px",color:COLORS.green,fontWeight:700,fontSize:22,letterSpacing:2,textAlign:"center"}}>📱 {demoOtp}</div>}
+    <div style={{ minHeight: "100vh", background: COLORS.dark, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      {toast && <div style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", border: `1px solid ${toast.color}`, color: toast.color, padding: "12px 24px", borderRadius: 16, zIndex: 999, fontWeight: 700 }}>{toast.msg}</div>}
+      <div style={{ background: "#111", border: `1px solid ${COLORS.yellow}`, borderRadius: 24, padding: 32, width: "100%", maxWidth: 400 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 56, fontWeight: 900, color: COLORS.yellow, letterSpacing: 8 }}>POST</div>
+          <div style={{ color: COLORS.muted, fontSize: 14, marginTop: 8 }}>Join the world</div>
         </div>
-        <input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="Enter OTP" style={{...inputStyle,textAlign:"center",fontSize:24,letterSpacing:8}} maxLength={6}
-          onKeyDown={e=>e.key==="Enter"&&handleVerify()} />
-        <button onClick={handleVerify} disabled={loading} style={{...btnStyle,marginTop:20,opacity:loading?0.7:1}}>
-          {loading ? "Verifying..." : "VERIFY →"}
-        </button>
-        {/* FIX: Added back button so user can fix wrong email */}
-        <div style={{textAlign:"center",marginTop:16}}>
-          <span onClick={onBack} style={{color:COLORS.muted,cursor:"pointer",fontSize:14}}>← Wrong email? Go back</span>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Your Name" style={inputStyle} />
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" style={{ ...inputStyle, marginTop: 12 }} />
+        <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" type="password" style={{ ...inputStyle, marginTop: 12 }} />
+        <button onClick={() => onSignup(name, email, password)} style={{ ...btnStyle, marginTop: 20 }}>CREATE ACCOUNT →</button>
+        <div style={{ textAlign: "center", marginTop: 16, color: COLORS.muted, fontSize: 14 }}>
+          Already have account? <span onClick={onGoLogin} style={{ color: COLORS.yellow, cursor: "pointer", fontWeight: 700 }}>Login</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function OtpScreen({ onVerify, email, demoOtp, toast }) {
+  const [otp, setOtp] = useState("");
+  return (
+    <div style={{ minHeight: "100vh", background: COLORS.dark, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      {toast && <div style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", border: `1px solid ${toast.color}`, color: toast.color, padding: "12px 24px", borderRadius: 16, zIndex: 999, fontWeight: 700 }}>{toast.msg}</div>}
+      <div style={{ background: "#111", border: `1px solid ${COLORS.yellow}`, borderRadius: 24, padding: 32, width: "100%", maxWidth: 400 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 40, fontWeight: 900, color: COLORS.yellow }}>Verify Email</div>
+          <div style={{ color: COLORS.muted, fontSize: 14, marginTop: 8 }}>OTP sent to {email}</div>
+          {demoOtp && <div style={{ marginTop: 12, background: "#1a1a1a", border: `1px solid ${COLORS.green}`, borderRadius: 12, padding: "10px 16px", color: COLORS.green, fontWeight: 700, fontSize: 18, letterSpacing: 4 }}>Demo OTP: {demoOtp}</div>}
+        </div>
+        <input value={otp} onChange={e => setOtp(e.target.value)} placeholder="Enter 4-digit OTP" style={inputStyle} maxLength={4} />
+        <button onClick={() => onVerify(otp)} style={{ ...btnStyle, marginTop: 20 }}>VERIFY →</button>
       </div>
     </div>
   );
 }
 
 function HomeTab({ token, user, showToast }) {
-  const [posts,setPosts]=useState([]); const [showCompose,setShowCompose]=useState(false); const [loading,setLoading]=useState(true);
-  const loadPosts=async()=>{ try{const d=await api("/posts","GET",null,token);setPosts(d);}catch(e){showToast(e.message,COLORS.red);} setLoading(false); };
-  useEffect(()=>{loadPosts();},[]);
+  const [posts, setPosts] = useState([]);
+  const [showCompose, setShowCompose] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleLike=async(pid,color)=>{
-    try{
-      await api(`/posts/${pid}/like`,"POST",{color},token);
-      loadPosts();
-    } catch(e){
-      // FIX: was silently swallowing errors — now shows toast
-      showToast(e.message||"Failed to like post", COLORS.red);
-    }
+  const loadPosts = async () => {
+    try { const data = await api("/posts", "GET", null, token); setPosts(data); }
+    catch (e) { showToast(e.message, COLORS.red); }
+    setLoading(false);
   };
 
-  const handleDelete=async(pid)=>{ try{await api(`/posts/${pid}`,"DELETE",null,token);showToast("Deleted",COLORS.red);loadPosts();}catch(e){showToast(e.message,COLORS.red);} };
+  useEffect(() => { loadPosts(); }, []);
 
-  const handleComment=async(pid,text)=>{
-    try{
-      await api(`/posts/${pid}/comments`,"POST",{text},token);
-      loadPosts();
-    } catch(e){
-      // FIX: was silently swallowing errors
-      showToast(e.message||"Failed to post comment", COLORS.red);
-    }
+  const handleLike = async (pid, color) => {
+    try { await api(`/posts/${pid}/like`, "POST", { color }, token); loadPosts(); }
+    catch (e) { showToast(e.message, COLORS.red); }
+  };
+
+  const handleDelete = async (pid) => {
+    try { await api(`/posts/${pid}`, "DELETE", null, token); showToast("Post deleted", COLORS.red); loadPosts(); }
+    catch (e) { showToast(e.message, COLORS.red); }
+  };
+
+  const handleComment = async (pid, text) => {
+    try { await api(`/posts/${pid}/comments`, "POST", { text }, token); loadPosts(); }
+    catch (e) { showToast(e.message, COLORS.red); }
   };
 
   return (
-    <div style={{maxWidth:600,margin:"0 auto",padding:"16px 16px"}}>
-      {loading&&<div style={{textAlign:"center",padding:40,color:COLORS.muted}}>Loading...</div>}
-      {!loading&&posts.length===0&&<div style={{textAlign:"center",padding:60,color:COLORS.muted}}>No posts yet. Be the first! 🚀</div>}
-      {posts.map(post=><PostCard key={post.id} post={post} user={user} onLike={handleLike} onDelete={handleDelete} onComment={handleComment} />)}
-      <button onClick={()=>setShowCompose(true)} style={{position:"fixed",bottom:90,right:20,width:60,height:60,background:COLORS.yellow,color:"#000",borderRadius:"50%",fontSize:32,fontWeight:900,border:"none",cursor:"pointer",boxShadow:"0 4px 12px rgba(255,214,0,0.4)"}}>+</button>
-      {showCompose&&<ComposeModal token={token} onClose={()=>setShowCompose(false)} onPost={()=>{setShowCompose(false);loadPosts();showToast("Posted! 🌍",COLORS.green);}} showToast={showToast} />}
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: "16px 16px" }}>
+      {loading && <div style={{ textAlign: "center", padding: 40, color: COLORS.muted }}>Loading...</div>}
+      {!loading && posts.length === 0 && <div style={{ textAlign: "center", padding: 60, color: COLORS.muted }}>No posts yet. Be the first! 🚀</div>}
+      {posts.map(post => <PostCard key={post.id} post={post} user={user} onLike={handleLike} onDelete={handleDelete} onComment={handleComment} />)}
+      <button onClick={() => setShowCompose(true)} style={{ position: "fixed", bottom: 90, right: 20, width: 60, height: 60, background: COLORS.yellow, color: "#000", borderRadius: "50%", fontSize: 32, fontWeight: 900, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(255,214,0,0.4)", zIndex: 40 }}>+</button>
+      {showCompose && <ComposeModal token={token} user={user} onClose={() => setShowCompose(false)} onPost={() => { setShowCompose(false); loadPosts(); showToast("Posted! 🌍", COLORS.green); }} showToast={showToast} />}
     </div>
   );
 }
 
 function PostCard({ post, user, onLike, onDelete, onComment }) {
-  const [showComments,setShowComments]=useState(false); const [commentText,setCommentText]=useState("");
-  const myLike=post.likes?.find(l=>l.user_id===user.id);
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const myLike = post.likes?.find(l => l.user_id === user.id);
   return (
-    <div style={{background:COLORS.card,border:"1px solid #222",borderRadius:20,marginBottom:16,overflow:"hidden"}}>
-      <div style={{padding:"14px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
-        <div style={{width:44,height:44,borderRadius:14,background:post.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
-          {post.avatar_photo?<img src={post.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="avatar" />:post.avatar_letter}
+    <div style={{ background: COLORS.card, border: "1px solid #222", borderRadius: 20, marginBottom: 16, overflow: "hidden" }}>
+      <div style={{ padding: "14px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 14, background: post.avatar_bg || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 20, flexShrink: 0, overflow: "hidden" }}>
+          {post.avatar_photo ? <img src={post.avatar_photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : post.avatar_letter}
         </div>
-        <div style={{flex:1}}><div style={{fontWeight:700,fontSize:15}}>{post.user_name}</div><div style={{color:COLORS.muted,fontSize:12}}>{post.user_handle}</div></div>
-        {post.user_id===user.id&&<button onClick={()=>onDelete(post.id)} style={{color:COLORS.muted,background:"none",border:"none",cursor:"pointer",fontSize:18}}>🗑</button>}
-      </div>
-      <div style={{padding:"0 16px 14px",fontSize:15,lineHeight:1.6}}>{post.content}</div>
-      {post.location&&<div style={{padding:"0 16px 10px",fontSize:12,color:COLORS.muted}}>📍 {post.location}</div>}
-      <div style={{borderTop:"1px solid #222",display:"flex"}}>
-        <div style={{flex:1,padding:"10px 0",display:"flex",justifyContent:"center",gap:8,alignItems:"center"}}>
-          {ACCENTS.map(c=><button key={c} onClick={()=>onLike(post.id,c)} style={{width:28,height:28,borderRadius:"50%",background:c,border:myLike?.color===c?"2px solid white":"2px solid transparent",cursor:"pointer",transition:"all 0.2s"}}></button>)}
-          <span style={{color:COLORS.muted,fontSize:13}}>{post.likes?.length||0}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{post.user_name}</div>
+          <div style={{ color: COLORS.muted, fontSize: 12 }}>{post.user_handle}</div>
         </div>
-        <button onClick={()=>setShowComments(!showComments)} style={{flex:1,padding:"10px 0",background:"none",border:"none",borderLeft:"1px solid #222",color:COLORS.muted,cursor:"pointer",fontSize:13}}>💬 {post.comments?.length||0}</button>
+        {post.user_id === user.id && <button onClick={() => onDelete(post.id)} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: 18 }}>🗑</button>}
       </div>
-      {showComments&&(
-        <div style={{borderTop:"1px solid #222",padding:12}}>
-          {/* FIX: Use c.id as key instead of index — prevents rendering bugs on add/delete */}
-          {post.comments?.map((c,i)=><div key={c.id||i} style={{fontSize:13,padding:"6px 0",borderBottom:"1px solid #1a1a1a"}}><span style={{fontWeight:700,color:COLORS.yellow}}>{c.user_name}: </span>{c.text}</div>)}
-          <div style={{display:"flex",gap:8,marginTop:10}}>
-            <input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Comment..." style={{...inputStyle,flex:1,padding:"8px 12px",fontSize:13}} onKeyDown={e=>{if(e.key==="Enter"&&commentText.trim()){onComment(post.id,commentText);setCommentText("");}}} />
-            <button onClick={()=>{if(commentText.trim()){onComment(post.id,commentText);setCommentText("");}}} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Post</button>
+      <div style={{ padding: "0 16px 14px", fontSize: 15, lineHeight: 1.6 }}>{post.content}</div>
+      {post.location && <div style={{ padding: "0 16px 10px", fontSize: 12, color: COLORS.muted }}>📍 {post.location}</div>}
+      <div style={{ borderTop: "1px solid #222", display: "flex" }}>
+        <div style={{ flex: 1, padding: "10px 0", display: "flex", justifyContent: "center", gap: 8 }}>
+          {ACCENTS.map(c => <button key={c} onClick={() => onLike(post.id, c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: myLike?.color === c ? "2px solid white" : "2px solid transparent", cursor: "pointer" }} />)}
+          <span style={{ color: COLORS.muted, fontSize: 13, alignSelf: "center" }}>{post.likes?.length || 0}</span>
+        </div>
+        <button onClick={() => setShowComments(!showComments)} style={{ flex: 1, padding: "10px 0", background: "none", border: "none", borderLeft: "1px solid #222", color: COLORS.muted, cursor: "pointer", fontSize: 13 }}>💬 {post.comments?.length || 0}</button>
+      </div>
+      {showComments && (
+        <div style={{ borderTop: "1px solid #222", padding: 12 }}>
+          {post.comments?.map((c, i) => <div key={i} style={{ fontSize: 13, padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}><span style={{ fontWeight: 700, color: COLORS.yellow }}>{c.user_name}: </span>{c.text}</div>)}
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Write a comment..." style={{ ...inputStyle, flex: 1, padding: "8px 12px", fontSize: 13 }} />
+            <button onClick={() => { if (commentText.trim()) { onComment(post.id, commentText); setCommentText(""); } }} style={{ background: COLORS.yellow, color: "#000", border: "none", borderRadius: 10, padding: "8px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Send</button>
           </div>
         </div>
       )}
@@ -683,89 +440,61 @@ function PostCard({ post, user, onLike, onDelete, onComment }) {
   );
 }
 
-function ComposeModal({ token, onClose, onPost, showToast }) {
-  const [text,setText]=useState("");
-  const [accent,setAccent]=useState(COLORS.yellow);
-  const [location,setLocation]=useState("");
-  // FIX: Added loading state to prevent double-submit
-  const [loading,setLoading]=useState(false);
-
-  const handlePost=async()=>{
-    if(!text.trim()) return;
-    if(loading) return; // Prevent double-submit
-    setLoading(true);
-    try{
-      await api("/posts","POST",{content:text,accent,location},token);
-      onPost();
-    } catch(e){
-      showToast(e.message,COLORS.red);
-      setLoading(false);
-    }
+function ComposeModal({ token, user, onClose, onPost, showToast }) {
+  const [text, setText] = useState("");
+  const [accent, setAccent] = useState(COLORS.yellow);
+  const [location, setLocation] = useState("");
+  const handlePost = async () => {
+    if (!text.trim()) return;
+    try { await api("/posts", "POST", { content: text, accent, location }, token); onPost(); }
+    catch (e) { showToast(e.message, COLORS.red); }
   };
-
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{background:"#111",borderRadius:24,padding:24,width:"100%",maxWidth:480}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <span style={{fontWeight:900,fontSize:20}}>New Post</span>
-          <button onClick={onClose} style={{color:COLORS.muted,background:"none",border:"none",cursor:"pointer",fontSize:20}}>✕</button>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ background: "#111", borderRadius: 24, padding: 24, width: "100%", maxWidth: 480 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ fontWeight: 900, fontSize: 20 }}>New Post</span>
+          <button onClick={onClose} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: 20 }}>✕</button>
         </div>
-        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="What's on your mind? 🌍" style={{...inputStyle,height:120,resize:"none"}} />
-        <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="📍 Location (optional)" style={{...inputStyle,marginTop:10,fontSize:13}} />
-        <div style={{display:"flex",gap:10,margin:"14px 0"}}>
-          {ACCENTS.map(c=><button key={c} onClick={()=>setAccent(c)} style={{width:40,height:40,borderRadius:12,background:c,border:accent===c?"3px solid white":"3px solid transparent",cursor:"pointer",transition:"all 0.2s"}}></button>)}
+        <textarea value={text} onChange={e => setText(e.target.value)} placeholder="What's on your mind?" style={{ ...inputStyle, height: 120, resize: "none", fontSize: 15 }} />
+        <input value={location} onChange={e => setLocation(e.target.value)} placeholder="📍 Location (optional)" style={{ ...inputStyle, marginTop: 10, fontSize: 13 }} />
+        <div style={{ display: "flex", gap: 10, margin: "14px 0" }}>
+          {ACCENTS.map(c => <button key={c} onClick={() => setAccent(c)} style={{ width: 40, height: 40, borderRadius: 12, background: c, border: accent === c ? "3px solid white" : "3px solid transparent", cursor: "pointer" }} />)}
         </div>
-        <button onClick={handlePost} disabled={loading} style={{...btnStyle,opacity:loading?0.7:1}}>
-          {loading ? "Sharing..." : "SHARE GLOBALLY 🌍"}
-        </button>
+        <button onClick={handlePost} style={{ ...btnStyle }}>SHARE GLOBALLY 🌍</button>
       </div>
     </div>
   );
 }
 
 function DiscoverTab({ token, user, showToast }) {
-  const [users,setUsers]=useState([]);
-  const [q,setQ]=useState("");
-  const [loading,setLoading]=useState(true);
-  // FIX: Track per-user connecting state to prevent spam clicks
-  const [connecting,setConnecting]=useState({});
-
-  useEffect(()=>{
-    setLoading(true);
-    const timer = setTimeout(()=>{
-      api(`/users${q?`?q=${encodeURIComponent(q)}`:""}`, "GET",null,token)
-        .then(setUsers)
-        .catch(()=>{})
-        .finally(()=>setLoading(false));
-    }, 400);
-    return ()=>clearTimeout(timer);
-  },[q]);
-
-  const sendRequest=async(uid)=>{
-    if(connecting[uid]) return;
-    setConnecting(c=>({...c,[uid]:true}));
-    try{
-      await api("/friends/request","POST",{target_user_id:uid},token);
-      showToast("Request sent! 🤝",COLORS.green);
-    } catch(e){ showToast(e.message,COLORS.red); }
-    setConnecting(c=>({...c,[uid]:false}));
+  const [users, setUsers] = useState([]);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const loadUsers = async () => {
+    try { const data = await api(`/users${q ? `?q=${q}` : ""}`, "GET", null, token); setUsers(data); }
+    catch (e) { showToast(e.message, COLORS.red); }
+    setLoading(false);
   };
-
+  useEffect(() => { loadUsers(); }, [q]);
+  const sendRequest = async (uid) => {
+    try { await api("/friends/request", "POST", { target_user_id: uid }, token); showToast("Request sent!", COLORS.green); }
+    catch (e) { showToast(e.message, COLORS.red); }
+  };
   return (
-    <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
-      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Search people..." style={{...inputStyle,marginBottom:16}} />
-      {loading&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Loading...</div>}
-      {/* FIX: Added empty state message when search returns no results */}
-      {!loading&&users.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>{q?"No users found for "{q}" 🔍":"No users yet 👀"}</div>}
-      {!loading&&users.map(u=>(
-        <div key={u.id} style={{background:COLORS.card,border:"1px solid #222",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:44,height:44,borderRadius:14,background:u.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
-            {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="avatar" />:u.avatar_letter}
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: 16 }}>
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Search people..." style={{ ...inputStyle, marginBottom: 16 }} />
+      {loading && <div style={{ textAlign: "center", color: COLORS.muted, padding: 40 }}>Loading...</div>}
+      {users.map(u => (
+        <div key={u.id} style={{ background: COLORS.card, border: "1px solid #222", borderRadius: 16, padding: "14px 16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: u.avatar_bg || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 20, flexShrink: 0, overflow: "hidden" }}>
+            {u.avatar_photo ? <img src={u.avatar_photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : u.avatar_letter}
           </div>
-          <div style={{flex:1}}><div style={{fontWeight:700}}>{u.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{u.handle}{u.location?` • ${u.location}`:""}</div></div>
-          <button onClick={()=>sendRequest(u.id)} disabled={connecting[u.id]} style={{background:connecting[u.id]?"#555":COLORS.yellow,color:connecting[u.id]?"#ccc":"#000",border:"none",borderRadius:10,padding:"8px 14px",fontWeight:700,cursor:connecting[u.id]?"not-allowed":"pointer",fontSize:13,transition:"all 0.2s"}}>
-            {connecting[u.id]?"Sending...":"Connect"}
-          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700 }}>{u.name}</div>
+            <div style={{ color: COLORS.muted, fontSize: 12 }}>{u.handle} {u.location ? `• ${u.location}` : ""}</div>
+          </div>
+          <button onClick={() => sendRequest(u.id)} style={{ background: COLORS.yellow, color: "#000", border: "none", borderRadius: 10, padding: "8px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Connect</button>
         </div>
       ))}
     </div>
@@ -773,37 +502,36 @@ function DiscoverTab({ token, user, showToast }) {
 }
 
 function FriendsTab({ token, user, showToast }) {
-  const [data,setData]=useState({friends:[],pending_incoming:[],pending_outgoing:[]});
-  // FIX: Empty catch replaced — errors were silently swallowed
-  const load=async()=>{ try{const d=await api("/friends","GET",null,token);setData(d);}catch(e){showToast(e.message||"Failed to load friends",COLORS.red);} };
-  useEffect(()=>{load();},[]);
-  // FIX: Added try-catch — errors were silently swallowed before
-  const accept=async(uid)=>{ try{await api("/friends/accept","POST",{target_user_id:uid},token);showToast("Friends now! 🎉",COLORS.green);load();}catch(e){showToast(e.message||"Failed to accept",COLORS.red);} };
-  const decline=async(uid)=>{ try{await api("/friends/decline","POST",{target_user_id:uid},token);load();}catch(e){showToast(e.message||"Failed to decline",COLORS.red);} };
+  const [data, setData] = useState({ friends: [], pending_incoming: [], pending_outgoing: [] });
+  const load = async () => {
+    try { const d = await api("/friends", "GET", null, token); setData(d); }
+    catch (e) { showToast(e.message, COLORS.red); }
+  };
+  useEffect(() => { load(); }, []);
+  const accept = async (uid) => { await api("/friends/accept", "POST", { target_user_id: uid }, token); showToast("Friend added!", COLORS.green); load(); };
+  const decline = async (uid) => { await api("/friends/decline", "POST", { target_user_id: uid }, token); load(); };
   return (
-    <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
-      {data.pending_incoming.length>0&&<>
-        <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,fontSize:13,letterSpacing:2}}>REQUESTS 📬</div>
-        {data.pending_incoming.map(r=>(
-          <div key={r.id} style={{background:COLORS.card,border:"1px solid #333",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
-            {/* FIX: was showing r.from_id (a raw number) — now shows name with handle fallback */}
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,fontSize:14}}>{r.from_name || r.name || "User"}</div>
-              <div style={{color:COLORS.muted,fontSize:12}}>{r.from_handle || r.handle || `#${r.from_id}`}</div>
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: 16 }}>
+      {data.pending_incoming.length > 0 && (
+        <>
+          <div style={{ fontWeight: 700, color: COLORS.yellow, marginBottom: 10, fontSize: 13, letterSpacing: 2 }}>REQUESTS 📬</div>
+          {data.pending_incoming.map(r => (
+            <div key={r.id} style={{ background: COLORS.card, border: "1px solid #333", borderRadius: 14, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{r.from_id}</div>
+              <button onClick={() => accept(r.from_id)} style={{ background: COLORS.green, color: "#000", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: 12, marginRight: 6 }}>Accept</button>
+              <button onClick={() => decline(r.from_id)} style={{ background: "#333", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Decline</button>
             </div>
-            <button onClick={()=>accept(r.from_id)} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12,marginRight:8}}>Accept</button>
-            <button onClick={()=>decline(r.from_id)} style={{background:"#333",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Decline</button>
+          ))}
+        </>
+      )}
+      <div style={{ fontWeight: 700, color: COLORS.yellow, marginBottom: 10, marginTop: 16, fontSize: 13, letterSpacing: 2 }}>YOUR FRIENDS 🤝</div>
+      {data.friends.length === 0 && <div style={{ color: COLORS.muted, textAlign: "center", padding: 30 }}>No friends yet. Go Discover!</div>}
+      {data.friends.map(f => (
+        <div key={f.id} style={{ background: COLORS.card, border: "1px solid #222", borderRadius: 14, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: f.avatar_bg || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, overflow: "hidden" }}>
+            {f.avatar_photo ? <img src={f.avatar_photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : f.avatar_letter}
           </div>
-        ))}
-      </>}
-      <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,marginTop:16,fontSize:13,letterSpacing:2}}>FRIENDS 🤝</div>
-      {data.friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:30}}>No friends yet. Start discovering! 🔍</div>}
-      {data.friends.map(f=>(
-        <div key={f.id} style={{background:COLORS.card,border:"1px solid #222",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:40,height:40,borderRadius:12,background:f.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden"}}>
-            {f.avatar_photo?<img src={f.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="avatar" />:f.avatar_letter}
-          </div>
-          <div><div style={{fontWeight:700}}>{f.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{f.handle}</div></div>
+          <div><div style={{ fontWeight: 700 }}>{f.name}</div><div style={{ color: COLORS.muted, fontSize: 12 }}>{f.handle}</div></div>
         </div>
       ))}
     </div>
@@ -811,77 +539,58 @@ function FriendsTab({ token, user, showToast }) {
 }
 
 function MessagesTab({ token, user, showToast }) {
-  // FIX: All useState must come before useEffect (React Hooks ordering rule)
-  const [friends,setFriends]=useState([]);
-  const [selected,setSelected]=useState(null);
-  const [messages,setMessages]=useState([]);
-  const [text,setText]=useState("");
-  const [sending,setSending]=useState(false);
-  const msgEnd=useRef(null);
-
-  // FIX: Added error handling — was silently swallowing errors
-  useEffect(()=>{
-    api("/friends","GET",null,token)
-      .then(d=>setFriends(d.friends))
-      .catch(e=>showToast(e.message||"Failed to load friends", COLORS.red));
-  },[]);
-
-  useEffect(()=>{
-    if(!selected)return;
-    // FIX: message polling errors were silently ignored
-    const load=()=>api(`/messages?with_user=${selected.id}`,"GET",null,token)
-      .then(setMessages)
-      .catch(()=>{});
-    load(); const iv=setInterval(load,5000); return()=>clearInterval(iv);
-  },[selected]);
-
-  useEffect(()=>msgEnd.current?.scrollIntoView({behavior:"smooth"}),[messages]);
-  const sendMsg=async()=>{
-    if(!text.trim()||!selected||sending)return;
-    setSending(true);
-    try{
-      await api("/messages","POST",{to_user_id:selected.id,text},token);
+  const [friends, setFriends] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const msgEnd = useRef(null);
+  useEffect(() => { api("/friends", "GET", null, token).then(d => setFriends(d.friends)).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!selected) return;
+    const load = () => api(`/messages?with_user=${selected.id}`, "GET", null, token).then(setMessages).catch(() => {});
+    load();
+    const iv = setInterval(load, 5000);
+    return () => clearInterval(iv);
+  }, [selected]);
+  useEffect(() => { msgEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  const sendMsg = async () => {
+    if (!text.trim() || !selected) return;
+    try {
+      await api("/messages", "POST", { to_user_id: selected.id, text }, token);
       setText("");
-      const d=await api(`/messages?with_user=${selected.id}`,"GET",null,token);
-      setMessages(d);
-    } catch(e){ showToast(e.message,COLORS.red); }
-    setSending(false);
+      const data = await api(`/messages?with_user=${selected.id}`, "GET", null, token);
+      setMessages(data);
+    } catch (e) { showToast(e.message, COLORS.red); }
   };
-
-  if(selected) return (
-    <div style={{maxWidth:600,margin:"0 auto",display:"flex",flexDirection:"column",height:"calc(100vh - 130px)"}}>
-      <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid #222"}}>
-        <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:COLORS.yellow,cursor:"pointer",fontSize:20}}>←</button>
-        <div style={{width:36,height:36,borderRadius:10,background:selected.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900}}>
-          {selected.avatar_photo?<img src={selected.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:10}} alt="avatar" />:selected.avatar_letter}
-        </div>
-        <div style={{fontWeight:700}}>{selected.name}</div>
+  if (selected) return (
+    <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", flexDirection: "column", height: "calc(100vh - 130px)" }}>
+      <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid #222" }}>
+        <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: COLORS.yellow, cursor: "pointer", fontSize: 20 }}>←</button>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: selected.avatar_bg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }}>{selected.avatar_letter}</div>
+        <div style={{ fontWeight: 700 }}>{selected.name}</div>
       </div>
-      <div style={{flex:1,overflowY:"auto",padding:16}}>
-        {messages.map(m=>(
-          <div key={m.id} style={{marginBottom:10,display:"flex",flexDirection:m.from_id===user.id?"row-reverse":"row",gap:8}}>
-            <div style={{background:m.from_id===user.id?COLORS.yellow:"#222",color:m.from_id===user.id?"#000":"#fff",borderRadius:14,padding:"8px 14px",maxWidth:"75%",fontSize:14}}>{m.text}</div>
+      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+        {messages.map(m => (
+          <div key={m.id} style={{ marginBottom: 10, display: "flex", flexDirection: m.from_id === user.id ? "row-reverse" : "row", gap: 8 }}>
+            <div style={{ background: m.from_id === user.id ? COLORS.yellow : "#222", color: m.from_id === user.id ? "#000" : "#fff", borderRadius: 14, padding: "8px 14px", maxWidth: "75%", fontSize: 14 }}>{m.text}</div>
           </div>
         ))}
         <div ref={msgEnd} />
       </div>
-      <div style={{padding:"10px 16px",borderTop:"1px solid #222",display:"flex",gap:10}}>
-        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMsg()} placeholder="Message..." style={{...inputStyle,flex:1}} />
-        <button onClick={sendMsg} disabled={sending} style={{background:sending?"#555":COLORS.yellow,color:sending?"#ccc":"#000",border:"none",borderRadius:12,padding:"10px 18px",fontWeight:700,cursor:sending?"not-allowed":"pointer",transition:"all 0.2s"}}>→</button>
+      <div style={{ padding: "10px 16px", borderTop: "1px solid #222", display: "flex", gap: 10 }}>
+        <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMsg()} placeholder="Message..." style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={sendMsg} style={{ background: COLORS.yellow, color: "#000", border: "none", borderRadius: 12, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>Send</button>
       </div>
     </div>
   );
-
   return (
-    <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
-      <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:12,fontSize:13,letterSpacing:2}}>MESSAGES 💬</div>
-      {friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:40}}>Add friends to start chatting!</div>}
-      {friends.map(f=>(
-        <div key={f.id} onClick={()=>setSelected(f)} style={{background:COLORS.card,border:"1px solid #222",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
-          <div style={{width:44,height:44,borderRadius:14,background:f.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,overflow:"hidden"}}>
-            {f.avatar_photo?<img src={f.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="avatar" />:f.avatar_letter}
-          </div>
-          <div><div style={{fontWeight:700}}>{f.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{f.handle}</div></div>
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: 16 }}>
+      <div style={{ fontWeight: 700, color: COLORS.yellow, marginBottom: 12, fontSize: 13, letterSpacing: 2 }}>MESSAGES 💬</div>
+      {friends.length === 0 && <div style={{ color: COLORS.muted, textAlign: "center", padding: 40 }}>Add friends to message them!</div>}
+      {friends.map(f => (
+        <div key={f.id} onClick={() => setSelected(f)} style={{ background: COLORS.card, border: "1px solid #222", borderRadius: 16, padding: "14px 16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: f.avatar_bg || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 20 }}>{f.avatar_letter}</div>
+          <div><div style={{ fontWeight: 700 }}>{f.name}</div><div style={{ color: COLORS.muted, fontSize: 12 }}>{f.handle}</div></div>
         </div>
       ))}
     </div>
@@ -889,62 +598,57 @@ function MessagesTab({ token, user, showToast }) {
 }
 
 function ProfileTab({ token, user, setUser, showToast }) {
-  const [editing,setEditing]=useState(false);
-  const [name,setName]=useState(user.name||"");
-  const [location,setLocation]=useState(user.location||"");
-  const [about,setAbout]=useState(user.about||"");
-  const [avatarBg,setAvatarBg]=useState(user.avatar_bg||COLORS.yellow);
-  const [saving,setSaving]=useState(false);
-
-  // FIX: Sync local edit state when user prop changes (after successful save)
-  useEffect(()=>{
-    setName(user.name||"");
-    setLocation(user.location||"");
-    setAbout(user.about||"");
-    setAvatarBg(user.avatar_bg||COLORS.yellow);
-  },[user]);
-
-  const save=async()=>{
-    setSaving(true);
-    try{
-      const u=await api("/profile","PATCH",{name,location,about,avatar_bg:avatarBg},token);
-      setUser(u);
-      setEditing(false);
-      showToast("Profile updated! ✓",COLORS.green);
-    } catch(e){
-      showToast(e.message,COLORS.red);
-    }
-    setSaving(false);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(user.name || "");
+  const [location, setLocation] = useState(user.location || "");
+  const [about, setAbout] = useState(user.about || "");
+  const [avatarBg, setAvatarBg] = useState(user.avatar_bg || COLORS.yellow);
+  const save = async () => {
+    try {
+      const updated = await api("/profile", "PATCH", { name, location, about, avatar_bg: avatarBg }, token);
+      setUser(updated); setEditing(false); showToast("Profile updated!", COLORS.green);
+    } catch (e) { showToast(e.message, COLORS.red); }
   };
-
   return (
-    <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
-      <div style={{background:COLORS.card,border:"1px solid #222",borderRadius:20,padding:24,textAlign:"center"}}>
-        <div style={{width:80,height:80,borderRadius:24,background:user.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:36,margin:"0 auto 16px",overflow:"hidden"}}>
-          {user.avatar_photo?<img src={user.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="avatar" />:user.avatar_letter}
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: 16 }}>
+      <div style={{ background: COLORS.card, border: "1px solid #222", borderRadius: 20, padding: 24, textAlign: "center" }}>
+        <div style={{ width: 80, height: 80, borderRadius: 24, background: user.avatar_bg || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 36, margin: "0 auto 16px", overflow: "hidden" }}>
+          {user.avatar_photo ? <img src={user.avatar_photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : user.avatar_letter}
         </div>
-        <div style={{fontWeight:900,fontSize:22}}>{user.name}</div>
-        <div style={{color:COLORS.muted,fontSize:14,marginTop:4}}>{user.handle}</div>
-        {user.location&&<div style={{color:COLORS.muted,fontSize:13,marginTop:4}}>📍 {user.location}</div>}
-        {user.about&&<div style={{color:"#ccc",fontSize:14,marginTop:10,lineHeight:1.5}}>{user.about}</div>}
-        {!editing?(
-          <button onClick={()=>setEditing(true)} style={{...btnStyle,marginTop:20,maxWidth:200,margin:"20px auto 0"}}>Edit Profile ✏️</button>
-        ):(
-          <div style={{marginTop:20,textAlign:"left"}}>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Name" style={{...inputStyle,marginBottom:10}} />
-            <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="Location" style={{...inputStyle,marginBottom:10}} />
-            <textarea value={about} onChange={e=>setAbout(e.target.value)} placeholder="About yourself..." style={{...inputStyle,height:80,resize:"none",marginBottom:10}} />
-            <div style={{display:"flex",gap:8,marginBottom:14}}>
-              {ACCENTS.map(c=><button key={c} onClick={()=>setAvatarBg(c)} style={{width:36,height:36,borderRadius:10,background:c,border:avatarBg===c?"3px solid white":"3px solid transparent",cursor:"pointer",transition:"all 0.2s"}}></button>)}
+        <div style={{ fontWeight: 900, fontSize: 22 }}>{user.name}</div>
+        <div style={{ color: COLORS.muted, fontSize: 14, marginTop: 4 }}>{user.handle}</div>
+        {user.location && <div style={{ color: COLORS.muted, fontSize: 13, marginTop: 4 }}>📍 {user.location}</div>}
+        {user.about && <div style={{ color: "#ccc", fontSize: 14, marginTop: 10, lineHeight: 1.5 }}>{user.about}</div>}
+        {!editing ? (
+          <button onClick={() => setEditing(true)} style={{ ...btnStyle, marginTop: 20, maxWidth: 200, margin: "20px auto 0" }}>Edit Profile</button>
+        ) : (
+          <div style={{ marginTop: 20, textAlign: "left" }}>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={{ ...inputStyle, marginBottom: 10 }} />
+            <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location" style={{ ...inputStyle, marginBottom: 10 }} />
+            <textarea value={about} onChange={e => setAbout(e.target.value)} placeholder="About you..." style={{ ...inputStyle, height: 80, resize: "none", marginBottom: 10 }} />
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {ACCENTS.map(c => <button key={c} onClick={() => setAvatarBg(c)} style={{ width: 36, height: 36, borderRadius: 10, background: c, border: avatarBg === c ? "3px solid white" : "3px solid transparent", cursor: "pointer" }} />)}
             </div>
-            <button onClick={save} disabled={saving} style={{...btnStyle,opacity:saving?0.7:1}}>{saving?"Saving...":"Save ✓"}</button>
-            <button onClick={()=>setEditing(false)} style={{...btnStyle,background:"#333",color:"#fff",marginTop:8}}>Cancel</button>
+            <button onClick={save} style={btnStyle}>Save Changes</button>
+            <button onClick={() => setEditing(false)} style={{ ...btnStyle, background: "#333", color: "#fff", marginTop: 8 }}>Cancel</button>
           </div>
         )}
       </div>
     </div>
   );
 }
+
+const inputStyle = {
+  width: "100%", background: "#0a0a0a", border: "1px solid #333",
+  borderRadius: 12, padding: "12px 16px", color: "#fff", fontSize: 15,
+  outline: "none", boxSizing: "border-box",
+};
+
+const btnStyle = {
+  width: "100%", padding: "14px", background: COLORS.yellow, color: "#000",
+  fontWeight: 900, fontSize: 15, border: "none", borderRadius: 14,
+  cursor: "pointer", letterSpacing: 1,
+};
 
 ReactDOM.createRoot(document.getElementById("root")).render(<PostApp />);
 </script>
