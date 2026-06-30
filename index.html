@@ -290,8 +290,8 @@ function PostApp() {
   const handleLogin = async(email,password)=>{ try{ const d=await api("/auth/login","POST",{email,password}); localStorage.setItem("token",d.token); setToken(d.token); }catch(e){showToast(e.message, COLORS.red);} };
   const handleSignup = async(name,email,password)=>{ try{ const d=await api("/auth/signup","POST",{name,email,password}); setPendingEmail(email); if(d.demo_otp)setDemoOtp(d.demo_otp); setScreen("otp"); }catch(e){showToast(e.message, COLORS.red);} };
   const handleVerifyOtp = async(otp)=>{ try{ const d=await api("/auth/verify-otp","POST",{email:pendingEmail,otp}); localStorage.setItem("token",d.token); setToken(d.token); setDemoOtp(null); }catch(e){showToast(e.message, COLORS.red);} };
-  const handlePhoneSuccess = (tok)=>{ localStorage.setItem("token",tok); setToken(tok); };
-  const handleLogout = ()=>{ localStorage.removeItem("token"); setToken(null); setUser(null); setScreen("login"); };
+  const handlePhoneSuccess = (tok)=>{ try{localStorage.setItem("token",tok);}catch(e){console.error("Token Save Error:",e);} setToken(tok); };
+  const handleLogout = ()=>{ try{localStorage.removeItem("token");}catch(e){console.error("Token Remove Error:",e);} setToken(null); setUser(null); setScreen("login"); };
 
   if(screen==="login") return <LoginScreen onLogin={handleLogin} onGoSignup={()=>setScreen("signup")} onGoPhone={()=>setScreen("phone-login")} onGoPhoneSignup={()=>setScreen("phone-signup")} toast={toast} />;
   if(screen==="signup") return <SignupScreen onSignup={handleSignup} onGoLogin={()=>setScreen("login")} toast={toast} />;
