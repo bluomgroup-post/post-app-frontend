@@ -296,7 +296,7 @@ function PhoneLoginScreen({ onBack, onSuccess, showToast }) {
     try {
       const phoneNum = phone.startsWith('+') ? phone : `+91${phone}`;
       const data = await api("/auth/phone-login", "POST", { phone: phoneNum, password });
-      onSuccess(data.token);
+      onSuccess(data);
     } catch(e) { showToast(e.message, COLORS.red); }
     setLoading(false);
   };
@@ -319,6 +319,37 @@ function PhoneLoginScreen({ onBack, onSuccess, showToast }) {
         <div style={{ textAlign:"center", marginTop:16 }}>
           <span onClick={onBack} style={{ color:COLORS.muted, cursor:"pointer", fontSize:14 }}>← Back</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Restore Account Prompt (shown on login if account is pending-delete) ──
+function RestorePromptScreen({ restoreInfo, onRestore, onCancel, showToast }) {
+  const [loading, setLoading] = useState(false);
+  const deadline = restoreInfo?.restore_deadline ? new Date(restoreInfo.restore_deadline).toLocaleDateString() : "";
+
+  const doRestore = async () => {
+    setLoading(true);
+    try {
+      await api("/account/restore", "POST", null, restoreInfo.token);
+      onRestore();
+    } catch (e) { showToast(e.message, COLORS.red); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"#111", border:`1px solid ${COLORS.red}`, borderRadius:24, padding:32, width:"100%", maxWidth:400, textAlign:"center" }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
+        <div style={{ fontWeight:900, fontSize:18, marginBottom:8 }}>Account Pending Deletion</div>
+        <div style={{ color:COLORS.muted, fontSize:14, lineHeight:1.5, marginBottom:24 }}>
+          Ye account delete hone ke liye scheduled hai ({deadline} tak). Isse restore karna chahte ho?
+        </div>
+        <button onClick={doRestore} disabled={loading} style={{...btnStyle, opacity:loading?0.7:1}}>
+          {loading ? "Restoring..." : "RESTORE ACCOUNT →"}
+        </button>
+        <button onClick={onCancel} style={{...btnStyle, background:"#333", color:"#fff", marginTop:10}}>Cancel</button>
       </div>
     </div>
   );
@@ -355,6 +386,7 @@ function PostApp() {
   const [tab, setTab] = useState("home");
   const [toast, setToast] = useState(null);
   const [newToken, setNewToken] = useState(null);
+  const [restoreInfo, setRestoreInfo] = useState(null);
 
   const showToast = (msg, color=COLORS.yellow) => { setToast({msg,color}); setTimeout(()=>setToast(null),3000); };
 
@@ -369,7 +401,13 @@ function PostApp() {
 
   if(screen==="splash") return <SplashScreen />;
 
-  const handleLogin = async(email,password)=>{ try{ const d=await api("/auth/login","POST",{email,password}); localStorage.setItem("token",d.token); setToken(d.token); }catch(e){showToast(e.message,COLORS.red);} };
+  const handleLogin = async(email,password)=>{
+    try{
+      const d=await api("/auth/login","POST",{email,password});
+      if(d.pending_delete){ setRestoreInfo({token:d.token, restore_deadline:d.restore_deadline}); setScreen("restore-prompt"); return; }
+      localStorage.setItem("token",d.token); setToken(d.token);
+    }catch(e){showToast(e.message,COLORS.red);}
+  };
   const handleEmailSuccess = (tok)=>{ setNewToken(tok); setScreen("account-created"); };
   const handlePhoneSuccess = (tok)=>{ setNewToken(tok); setScreen("account-created"); };
   const handleAccountCreatedDone = ()=>{ setScreen("profile-setup"); };
@@ -381,7 +419,14 @@ function PostApp() {
   if(screen==="account-created") return <AccountCreatedScreen onContinue={handleAccountCreatedDone} />;
   if(screen==="profile-setup") return <ProfileSetupScreen token={newToken} onDone={handleProfileSetupDone} showToast={showToast} />;
   if(screen==="phone-signup") return <PhoneSignupScreen onBack={()=>setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} />;
-  if(screen==="phone-login") return <PhoneLoginScreen onBack={()=>setScreen("login")} onSuccess={(tok)=>{localStorage.setItem("token",tok);setToken(tok);}} showToast={showToast} />;
+  if(screen==="phone-login") return <PhoneLoginScreen onBack={()=>setScreen("login")} onSuccess={(d)=>{
+    if(d.pending_delete){ setRestoreInfo({token:d.token, restore_deadline:d.restore_deadline}); setScreen("restore-prompt"); return; }
+    localStorage.setItem("token",d.token); setToken(d.token);
+  }} showToast={showToast} />;
+  if(screen==="restore-prompt") return <RestorePromptScreen restoreInfo={restoreInfo} showToast={showToast}
+    onRestore={()=>{ localStorage.setItem("token",restoreInfo.token); setToken(restoreInfo.token); setRestoreInfo(null); setScreen("app"); }}
+    onCancel={()=>{ setRestoreInfo(null); setScreen("login"); }}
+  />;
   if(!user) return <div style={{minHeight:"100vh",background:"#000",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24}}>Loading...</div>;
 
   return (
@@ -395,7 +440,10 @@ function PostApp() {
       {tab==="discover"&&<DiscoverTab token={token} user={user} showToast={showToast} />}
       {tab==="friends"&&<FriendsTab token={token} user={user} showToast={showToast} />}
       {tab==="messages"&&<MessagesTab token={token} user={user} showToast={showToast} />}
-      {tab==="profile"&&<ProfileTab token={token} user={user} setUser={setUser} showToast={showToast} />}
+      {tab==="profile"&&<ProfileTab token={token} user={user} setUser={setUser} showToast={showToast} onAccountDeleted={()=>{
+        showToast("Account 30 dino ke liye pending-delete ho gaya. Dobara login karke restore kar sakte ho.", COLORS.red);
+        handleLogout();
+      }} />}
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#050505",borderTop:"1px solid #222",display:"flex",justifyContent:"space-around",padding:"10px 0",zIndex:50}}>
         {[["home","🏠"],["discover","🔍"],["friends","👥"],["messages","💬"],["profile","👤"]].map(([id,icon])=>(
           <button key={id} onClick={()=>setTab(id)} style={{fontSize:24,background:"none",border:"none",cursor:"pointer",opacity:tab===id?1:0.4,transform:tab===id?"scale(1.2)":"scale(1)",transition:"all 0.2s"}}>{icon}</button>
@@ -792,9 +840,18 @@ function MessagesTab({ token, user, showToast }) {
   );
 }
 
-function ProfileTab({ token, user, setUser, showToast }) {
+function ProfileTab({ token, user, setUser, showToast, onAccountDeleted }) {
   const [editing,setEditing]=useState(false); const [name,setName]=useState(user.name||""); const [location,setLocation]=useState(user.location||""); const [about,setAbout]=useState(user.about||""); const [avatarBg,setAvatarBg]=useState(user.avatar_bg||COLORS.yellow);
+  const [confirmingDelete,setConfirmingDelete]=useState(false); const [deleting,setDeleting]=useState(false);
   const save=async()=>{ try{const u=await api("/profile","PATCH",{name,location,about,avatar_bg:avatarBg},token);setUser(u);setEditing(false);showToast("Profile updated! ✓",COLORS.green);}catch(e){showToast(e.message,COLORS.red);} };
+  const requestDelete=async()=>{
+    setDeleting(true);
+    try{
+      await api("/account/delete-request","POST",null,token);
+      onAccountDeleted();
+    }catch(e){ showToast(e.message,COLORS.red); }
+    setDeleting(false);
+  };
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
       <div style={{background:COLORS.card,border:"1px solid #222",borderRadius:20,padding:24,textAlign:"center"}}>
@@ -817,6 +874,22 @@ function ProfileTab({ token, user, setUser, showToast }) {
             </div>
             <button onClick={save} style={btnStyle}>Save ✓</button>
             <button onClick={()=>setEditing(false)} style={{...btnStyle,background:"#333",color:"#fff",marginTop:8}}>Cancel</button>
+          </div>
+        )}
+      </div>
+
+      <div style={{background:COLORS.card,border:"1px solid #222",borderRadius:20,padding:24,marginTop:16}}>
+        {!confirmingDelete ? (
+          <button onClick={()=>setConfirmingDelete(true)} style={{...btnStyle,background:"transparent",border:`1px solid ${COLORS.red}`,color:COLORS.red}}>Delete Account 🗑️</button>
+        ) : (
+          <div style={{textAlign:"left"}}>
+            <div style={{color:COLORS.red,fontSize:13,marginBottom:14,lineHeight:1.5}}>
+              Account 30 dino ke liye pending-delete ho jayega. Isi phone number/email se dobara login karke restore kar sakte ho. 30 din baad account permanently delete ho jayega aur isi number se naya account bana sakte ho.
+            </div>
+            <button onClick={requestDelete} disabled={deleting} style={{...btnStyle,background:COLORS.red,opacity:deleting?0.7:1}}>
+              {deleting ? "Processing..." : "YES, DELETE MY ACCOUNT"}
+            </button>
+            <button onClick={()=>setConfirmingDelete(false)} style={{...btnStyle,background:"#333",color:"#fff",marginTop:8}}>Cancel</button>
           </div>
         )}
       </div>
