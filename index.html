@@ -9,11 +9,21 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #ffffff; color: #111111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+:root {
+  --bg: #ffffff; --card-bg: #ffffff; --text: #111111; --muted: #666666;
+  --border: #e0e0e0; --input-bg: #f5f5f5; --nav-bg: #ffffff;
+  --shadow: rgba(0,0,0,0.08);
+}
+[data-theme="dark"] {
+  --bg: #0f0f0f; --card-bg: #1a1a1a; --text: #f0f0f0; --muted: #aaaaaa;
+  --border: #2e2e2e; --input-bg: #252525; --nav-bg: #141414;
+  --shadow: rgba(0,0,0,0.4);
+}
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; transition: background 0.3s, color 0.3s; }
 input, textarea, button { font-family: inherit; }
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #f0f0f0; }
-::-webkit-scrollbar-thumb { background: #bbb; border-radius: 2px; }
+::-webkit-scrollbar-track { background: var(--input-bg); }
+::-webkit-scrollbar-thumb { background: #888; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -24,8 +34,106 @@ const { useState, useEffect, useRef } = React;
 const API = "https://post-app-backend-dqtp.onrender.com/api";
 const COLORS = {
   yellow: "#FFD600", green: "#00C853", red: "#FF1744", blue: "#29B6F6",
-  dark: "#FFFFFF", card: "#FFFFFF", text: "#111111", muted: "#666666",
+  dark: "var(--bg)", card: "var(--card-bg)", text: "var(--text)", muted: "var(--muted)",
 };
+
+// Apply theme via CSS custom properties
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('post_theme', theme);
+}
+
+// Language translations
+const TRANSLATIONS = {
+  en: { home:"Home", search:"Search", friends:"Friends", messages:"Messages", profile:"Profile",
+        newPost:"New Post", settings:"Settings", darkMode:"Dark Mode", language:"Language",
+        privacy:"Privacy", security:"Security", notifications:"Notifications", logout:"Log Out",
+        invite:"Invite Friends", comment:"Comment", connect:"Connect", save:"Save", cancel:"Cancel",
+        posting:"Posting...", shareGlobally:"SHARE GLOBALLY 🌍", writeHere:"What's on your mind? 🌍",
+        location:"📍 Location (optional)", postColour:"POST COLOUR" },
+  hi: { home:"होम", search:"खोजें", friends:"दोस्त", messages:"संदेश", profile:"प्रोफाइल",
+        newPost:"नई पोस्ट", settings:"सेटिंग्स", darkMode:"डार्क मोड", language:"भाषा",
+        privacy:"गोपनीयता", security:"सुरक्षा", notifications:"सूचनाएं", logout:"लॉग आउट",
+        invite:"दोस्तों को आमंत्रित करें", comment:"टिप्पणी", connect:"जोड़ें", save:"सेव करें", cancel:"रद्द करें",
+        posting:"पोस्ट हो रहा है...", shareGlobally:"विश्व में साझा करें 🌍", writeHere:"आपके मन में क्या है? 🌍",
+        location:"📍 स्थान (वैकल्पिक)", postColour:"पोस्ट रंग" },
+  ur: { home:"ہوم", search:"تلاش", friends:"دوست", messages:"پیغامات", profile:"پروفائل",
+        newPost:"نئی پوسٹ", settings:"ترتیبات", darkMode:"ڈارک موڈ", language:"زبان",
+        privacy:"رازداری", security:"سیکورٹی", notifications:"اطلاعات", logout:"لاگ آؤٹ",
+        invite:"دوستوں کو مدعو کریں", comment:"تبصرہ", connect:"جوڑیں", save:"محفوظ", cancel:"منسوخ",
+        posting:"پوسٹ ہو رہا ہے...", shareGlobally:"دنیا میں شیئر کریں 🌍", writeHere:"آپ کے ذہن میں کیا ہے؟ 🌍",
+        location:"📍 مقام (اختیاری)", postColour:"پوسٹ رنگ" },
+  es: { home:"Inicio", search:"Buscar", friends:"Amigos", messages:"Mensajes", profile:"Perfil",
+        newPost:"Nueva Publicación", settings:"Ajustes", darkMode:"Modo Oscuro", language:"Idioma",
+        privacy:"Privacidad", security:"Seguridad", notifications:"Notificaciones", logout:"Cerrar Sesión",
+        invite:"Invitar Amigos", comment:"Comentar", connect:"Conectar", save:"Guardar", cancel:"Cancelar",
+        posting:"Publicando...", shareGlobally:"COMPARTIR GLOBALMENTE 🌍", writeHere:"¿Qué tienes en mente? 🌍",
+        location:"📍 Ubicación (opcional)", postColour:"COLOR DE PUBLICACIÓN" },
+  fr: { home:"Accueil", search:"Rechercher", friends:"Amis", messages:"Messages", profile:"Profil",
+        newPost:"Nouveau Post", settings:"Paramètres", darkMode:"Mode Sombre", language:"Langue",
+        privacy:"Confidentialité", security:"Sécurité", notifications:"Notifications", logout:"Déconnexion",
+        invite:"Inviter des Amis", comment:"Commenter", connect:"Connecter", save:"Enregistrer", cancel:"Annuler",
+        posting:"Publication...", shareGlobally:"PARTAGER GLOBALEMENT 🌍", writeHere:"Quoi de neuf? 🌍",
+        location:"📍 Lieu (optionnel)", postColour:"COULEUR DU POST" },
+  ar: { home:"الرئيسية", search:"بحث", friends:"أصدقاء", messages:"رسائل", profile:"الملف الشخصي",
+        newPost:"منشور جديد", settings:"الإعدادات", darkMode:"الوضع المظلم", language:"اللغة",
+        privacy:"الخصوصية", security:"الأمان", notifications:"الإشعارات", logout:"تسجيل الخروج",
+        invite:"دعوة الأصدقاء", comment:"تعليق", connect:"تواصل", save:"حفظ", cancel:"إلغاء",
+        posting:"جارٍ النشر...", shareGlobally:"مشاركة عالمياً 🌍", writeHere:"ما الذي تفكر فيه؟ 🌍",
+        location:"📍 الموقع (اختياري)", postColour:"لون المنشور" },
+  pt: { home:"Início", search:"Buscar", friends:"Amigos", messages:"Mensagens", profile:"Perfil",
+        newPost:"Nova Publicação", settings:"Configurações", darkMode:"Modo Escuro", language:"Idioma",
+        privacy:"Privacidade", security:"Segurança", notifications:"Notificações", logout:"Sair",
+        invite:"Convidar Amigos", comment:"Comentar", connect:"Conectar", save:"Salvar", cancel:"Cancelar",
+        posting:"Publicando...", shareGlobally:"COMPARTILHAR GLOBALMENTE 🌍", writeHere:"O que você está pensando? 🌍",
+        location:"📍 Local (opcional)", postColour:"COR DA PUBLICAÇÃO" },
+  de: { home:"Startseite", search:"Suchen", friends:"Freunde", messages:"Nachrichten", profile:"Profil",
+        newPost:"Neuer Beitrag", settings:"Einstellungen", darkMode:"Dunkler Modus", language:"Sprache",
+        privacy:"Datenschutz", security:"Sicherheit", notifications:"Benachrichtigungen", logout:"Abmelden",
+        invite:"Freunde einladen", comment:"Kommentar", connect:"Verbinden", save:"Speichern", cancel:"Abbrechen",
+        posting:"Wird veröffentlicht...", shareGlobally:"WELTWEIT TEILEN 🌍", writeHere:"Was denkst du? 🌍",
+        location:"📍 Ort (optional)", postColour:"BEITRAGSFARBE" },
+  zh: { home:"首页", search:"搜索", friends:"朋友", messages:"消息", profile:"个人资料",
+        newPost:"新帖子", settings:"设置", darkMode:"深色模式", language:"语言",
+        privacy:"隐私", security:"安全", notifications:"通知", logout:"退出登录",
+        invite:"邀请朋友", comment:"评论", connect:"连接", save:"保存", cancel:"取消",
+        posting:"发布中...", shareGlobally:"全球分享 🌍", writeHere:"你在想什么？🌍",
+        location:"📍 位置（可选）", postColour:"帖子颜色" },
+  ja: { home:"ホーム", search:"検索", friends:"友達", messages:"メッセージ", profile:"プロフィール",
+        newPost:"新しい投稿", settings:"設定", darkMode:"ダークモード", language:"言語",
+        privacy:"プライバシー", security:"セキュリティ", notifications:"通知", logout:"ログアウト",
+        invite:"友達を招待", comment:"コメント", connect:"繋がる", save:"保存", cancel:"キャンセル",
+        posting:"投稿中...", shareGlobally:"世界と共有 🌍", writeHere:"今何を考えていますか？🌍",
+        location:"📍 場所（任意）", postColour:"投稿の色" },
+  ru: { home:"Главная", search:"Поиск", friends:"Друзья", messages:"Сообщения", profile:"Профиль",
+        newPost:"Новый пост", settings:"Настройки", darkMode:"Тёмный режим", language:"Язык",
+        privacy:"Конфиденциальность", security:"Безопасность", notifications:"Уведомления", logout:"Выйти",
+        invite:"Пригласить друзей", comment:"Комментарий", connect:"Подключить", save:"Сохранить", cancel:"Отмена",
+        posting:"Публикация...", shareGlobally:"ПОДЕЛИТЬСЯ ГЛОБАЛЬНО 🌍", writeHere:"Что у вас на уме? 🌍",
+        location:"📍 Место (необязательно)", postColour:"ЦВЕТ ПОСТА" },
+  bn: { home:"হোম", search:"খুঁজুন", friends:"বন্ধু", messages:"বার্তা", profile:"প্রোফাইল",
+        newPost:"নতুন পোস্ট", settings:"সেটিংস", darkMode:"ডার্ক মোড", language:"ভাষা",
+        privacy:"গোপনীয়তা", security:"নিরাপত্তা", notifications:"বিজ্ঞপ্তি", logout:"লগ আউট",
+        invite:"বন্ধুদের আমন্ত্রণ", comment:"মন্তব্য", connect:"সংযুক্ত করুন", save:"সংরক্ষণ", cancel:"বাতিল",
+        posting:"পোস্ট হচ্ছে...", shareGlobally:"বিশ্বে শেয়ার করুন 🌍", writeHere:"আপনি কী ভাবছেন? 🌍",
+        location:"📍 অবস্থান (ঐচ্ছিক)", postColour:"পোস্টের রঙ" },
+  id: { home:"Beranda", search:"Cari", friends:"Teman", messages:"Pesan", profile:"Profil",
+        newPost:"Postingan Baru", settings:"Pengaturan", darkMode:"Mode Gelap", language:"Bahasa",
+        privacy:"Privasi", security:"Keamanan", notifications:"Notifikasi", logout:"Keluar",
+        invite:"Undang Teman", comment:"Komentar", connect:"Hubungkan", save:"Simpan", cancel:"Batal",
+        posting:"Memposting...", shareGlobally:"BAGIKAN KE SELURUH DUNIA 🌍", writeHere:"Apa yang kamu pikirkan? 🌍",
+        location:"📍 Lokasi (opsional)", postColour:"WARNA POSTINGAN" },
+  tr: { home:"Ana Sayfa", search:"Ara", friends:"Arkadaşlar", messages:"Mesajlar", profile:"Profil",
+        newPost:"Yeni Gönderi", settings:"Ayarlar", darkMode:"Karanlık Mod", language:"Dil",
+        privacy:"Gizlilik", security:"Güvenlik", notifications:"Bildirimler", logout:"Çıkış Yap",
+        invite:"Arkadaşları Davet Et", comment:"Yorum", connect:"Bağlan", save:"Kaydet", cancel:"İptal",
+        posting:"Yayınlanıyor...", shareGlobally:"DÜNYA GENELINDE PAYLAŞ 🌍", writeHere:"Aklınızda ne var? 🌍",
+        location:"📍 Konum (isteğe bağlı)", postColour:"GÖNDERİ RENGİ" },
+};
+
+let _currentLang = localStorage.getItem('post_lang') || 'en';
+function t(key) { return (TRANSLATIONS[_currentLang] || TRANSLATIONS['en'])[key] || key; }
+function setAppLang(lang) { _currentLang = lang; localStorage.setItem('post_lang', lang); }
 const ACCENTS = [COLORS.yellow, COLORS.green, COLORS.red, COLORS.blue];
 const normalizeColor = (c) => c && c.toUpperCase() === "#2979FF" ? "#29B6F6" : c;
 const CATEGORIES = [
@@ -50,12 +158,12 @@ async function api(path, method = "GET", body = null, token = null) {
   return data;
 }
 
-const inputStyle = { width:"100%", background:"#f5f5f5", border:"1px solid #ddd", borderRadius:12, padding:"12px 16px", color:"#111111", fontSize:15, outline:"none", boxSizing:"border-box" };
+const inputStyle = { width:"100%", background:"var(--input-bg)", border:"1px solid var(--border)", borderRadius:12, padding:"12px 16px", color:"var(--text)", fontSize:15, outline:"none", boxSizing:"border-box" };
 const btnStyle = { width:"100%", padding:"14px", background:COLORS.yellow, color:"#000", fontWeight:900, fontSize:15, border:"none", borderRadius:14, cursor:"pointer", letterSpacing:1 };
 
 function Toast({ toast }) {
   if (!toast) return null;
-  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"#ffffff", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:16, zIndex:9999, fontWeight:700, fontSize:14, whiteSpace:"nowrap" }}>{toast.msg}</div>;
+  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"var(--card-bg)", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:16, zIndex:9999, fontWeight:700, fontSize:14, whiteSpace:"nowrap", boxShadow:"0 4px 20px var(--shadow)" }}>{toast.msg}</div>;
 }
 
 function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
@@ -395,12 +503,12 @@ function PostApp() {
   if(screen==="profile-setup") return <ProfileSetupScreen token={newToken} onDone={handleProfileSetupDone} showToast={showToast} />;
   if(screen==="phone-signup") return <PhoneSignupScreen onBack={()=>setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} />;
   if(screen==="phone-login") return <PhoneLoginScreen onBack={()=>setScreen("login")} onSuccess={(tok)=>{localStorage.setItem("token",tok);setToken(tok);}} showToast={showToast} />;
-  if(!user) return <div style={{minHeight:"100vh",background:"#000",display:"flex",alignItems:"center",justifyContent:"center",color:"#111111",fontSize:24}}>Loading...</div>;
+  if(!user) return <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text)",fontSize:24}}>Loading...</div>;
 
   return (
     <div style={{minHeight:"100vh",background:COLORS.dark,color:COLORS.text,paddingBottom:80}}>
       <Toast toast={toast} />
-      <div style={{position:"sticky",top:0,background:"#ffffff",borderBottom:"1px solid #e8e8e8",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:50}}>
+      <div style={{position:"sticky",top:0,background:"var(--nav-bg)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:50}}>
         <span style={{fontSize:28,fontWeight:900,letterSpacing:6}}><span style={{color:'#FFD600'}}>P</span><span style={{color:'#00C853'}}>O</span><span style={{color:'#FF1744'}}>S</span><span style={{color:'#29B6F6'}}>T</span></span>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
           <button onClick={()=>setTab("invite")} title="Invite Friends" style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",color:tab==="invite"?"#FFD600":"#666"}}>
@@ -419,7 +527,7 @@ function PostApp() {
       {tab==="profile"&&<ProfileTab token={token} user={user} setUser={setUser} showToast={showToast} />}
       {tab==="settings"&&<SettingsScreen token={token} user={user} setUser={setUser} showToast={showToast} onBack={()=>setTab("profile")} onLoggedOut={handleLogout} />}
       {tab==="invite"&&<InviteFriendsScreen user={user} showToast={showToast} onBack={()=>setTab("home")} />}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#ffffff",borderTop:"1px solid #e8e8e8",display:"flex",justifyContent:"space-around",alignItems:"center",padding:"8px 0 10px",zIndex:50}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"var(--nav-bg)",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-around",alignItems:"center",padding:"8px 0 10px",zIndex:50}}>
         {[
           {id:"home",label:"Home",svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill={active?"#FFD600":"none"} stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>},
           {id:"discover",label:"Search",svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active?"#FFD600":"#999"} strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>},
@@ -1054,10 +1162,10 @@ const LANGUAGES = [
 
 function SettingRow({ label, sub, right }) {
   return (
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 0", borderBottom:"1px solid #eee" }}>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 0", borderBottom:"1px solid var(--border)" }}>
       <div>
-        <div style={{ fontSize:14, fontWeight:700, color:COLORS.text }}>{label}</div>
-        {sub && <div style={{ fontSize:12, color:COLORS.muted, marginTop:2 }}>{sub}</div>}
+        <div style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>{label}</div>
+        {sub && <div style={{ fontSize:12, color:"var(--muted)", marginTop:2 }}>{sub}</div>}
       </div>
       {right}
     </div>
@@ -1076,7 +1184,7 @@ function SettingsSection({ title, children }) {
   return (
     <div style={{ marginBottom:24 }}>
       <div style={{ fontSize:12, fontWeight:800, color:COLORS.muted, letterSpacing:1, marginBottom:6, textTransform:"uppercase" }}>{title}</div>
-      <div style={{ background:"#fff", borderRadius:16, padding:"4px 16px", border:"1px solid #eee" }}>{children}</div>
+      <div style={{ background:"var(--card-bg)", borderRadius:16, padding:"4px 16px", border:"1px solid var(--border)" }}>{children}</div>
     </div>
   );
 }
@@ -1116,9 +1224,9 @@ function SettingsScreen({ token, user, setUser, showToast, onBack, onLoggedOut }
   };
 
   const togglePrivate = (val) => { setIsPrivate(val); patchProfile({ is_private: val }); showToast(val ? "Account set to Private" : "Account set to Public", COLORS.green); };
-  const toggleTheme = (isDark) => { const t = isDark ? "dark" : "light"; setTheme(t); patchProfile({ theme: t }); showToast(`${isDark ? "Dark" : "Light"} theme saved`, COLORS.green); };
+  const toggleTheme = (isDark) => { const t = isDark ? "dark" : "light"; setTheme(t); applyTheme(t); patchProfile({ theme: t }); showToast(`${isDark ? "Dark" : "Light"} theme saved`, COLORS.green); };
   const toggleTranslate = (val) => { setTranslateOn(val); patchProfile({ chat_translation_enabled: val }); showToast(val ? "Auto-translation on" : "Auto-translation off", COLORS.green); };
-  const changeLanguage = (lang) => { setLanguage(lang); patchProfile({ language: lang }); showToast("Language updated", COLORS.green); };
+  const changeLanguage = (newLang) => { setLanguage(newLang); setAppLang(newLang); patchProfile({ language: newLang }); showToast("Language updated ✓", COLORS.green); setTimeout(()=>window.location.reload(), 800); };
 
   const toggleNotif = async (key, val) => {
     const next = { ...notifPrefs, [key]: val };
@@ -1153,14 +1261,14 @@ function SettingsScreen({ token, user, setUser, showToast, onBack, onLoggedOut }
     catch(e) { showToast(e.message, COLORS.red); }
   };
 
-  const inputStyle = { width:"100%", padding:"12px 14px", borderRadius:12, border:"1.5px solid #ddd", fontSize:14, outline:"none" };
+  const inputStyle = { width:"100%", padding:"12px 14px", borderRadius:12, border:`1.5px solid var(--border)`, fontSize:14, outline:"none", background:"var(--input-bg)", color:"var(--text)" };
   const btnStyle = { width:"100%", padding:"12px", borderRadius:12, border:"none", fontWeight:800, fontSize:14, cursor:"pointer" };
 
   return (
-    <div style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px 40px" }}>
+    <div style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px 40px", background:"var(--bg)", minHeight:"100vh" }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
         <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", fontSize:20 }}>←</button>
-        <div style={{ fontSize:22, fontWeight:900 }}>Settings</div>
+        <div style={{ fontSize:22, fontWeight:900, color:"var(--text)" }}>Settings</div>
       </div>
 
       <SettingsSection title="Privacy">
@@ -1271,13 +1379,14 @@ function ShareButton({ label, color, icon, onClick }) {
   return (
     <button onClick={onClick} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, background:"none", border:"none", cursor:"pointer", width:72 }}>
       <div style={{ width:52, height:52, borderRadius:16, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}>{icon}</div>
-      <span style={{ fontSize:11, fontWeight:700, color:COLORS.text, textAlign:"center" }}>{label}</span>
+      <span style={{ fontSize:11, fontWeight:700, color:"var(--text)", textAlign:"center" }}>{label}</span>
     </button>
   );
 }
 
 function InviteFriendsScreen({ user, showToast, onBack }) {
-  const inviteUrl = `${window.location.origin}${window.location.pathname}?ref=${encodeURIComponent(user.username || user.id)}`;
+  const profileUrl = `https://post-app-frontend.onrender.com?ref=${encodeURIComponent(user.username || user.id)}`;
+  const inviteUrl = profileUrl;
   const inviteText = `Join me on POST — the app for public figures! ${inviteUrl}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(inviteUrl)}`;
 
@@ -1305,24 +1414,26 @@ function InviteFriendsScreen({ user, showToast, onBack }) {
       icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg> },
     { label:"Copy Link", color:COLORS.blue, onClick:copyLink,
       icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> },
+    { label:"More", color:"#555555", onClick:()=>{ if(navigator.share){navigator.share({title:"Join POST",text:inviteText,url:inviteUrl}).catch(()=>{}); } else { copyLink(); } },
+      icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg> },
   ];
 
   return (
     <div style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px 40px" }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
         <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", fontSize:20 }}>←</button>
-        <div style={{ fontSize:22, fontWeight:900 }}>Invite Friends</div>
+        <div style={{ fontSize:22, fontWeight:900, color:"var(--text)" }}>Invite Friends</div>
       </div>
 
       <div style={{ textAlign:"center", marginBottom:24 }}>
         <div style={{ fontSize:15, color:COLORS.muted, marginBottom:16 }}>Invite friends to join POST and grow your circle 🚀</div>
-        <div style={{ display:"inline-block", background:"#fff", borderRadius:20, padding:16, border:"1px solid #eee" }}>
+        <div style={{ display:"inline-block", background:"var(--card-bg)", borderRadius:20, padding:16, border:"1px solid var(--border)" }}>
           <img src={qrUrl} alt="Invite QR code" width={220} height={220} style={{ display:"block", borderRadius:8 }} />
         </div>
       </div>
 
-      <div style={{ background:"#fff", border:"1px solid #eee", borderRadius:16, padding:"12px 14px", display:"flex", alignItems:"center", gap:10, marginBottom:24 }}>
-        <div style={{ flex:1, fontSize:13, color:COLORS.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{inviteUrl}</div>
+      <div style={{ background:"var(--card-bg)", border:"1px solid var(--border)", borderRadius:16, padding:"12px 14px", display:"flex", alignItems:"center", gap:10, marginBottom:24 }}>
+        <div style={{ flex:1, fontSize:13, color:"var(--muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{inviteUrl}</div>
         <button onClick={copyLink} style={{ background:COLORS.blue, color:"#fff", border:"none", borderRadius:10, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", flexShrink:0 }}>Copy</button>
       </div>
 
@@ -1338,4 +1449,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(<PostApp />);
 </script>
 </body>
 </html>
+
 
