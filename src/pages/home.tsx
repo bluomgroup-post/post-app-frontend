@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { MessageSquare, Heart, Bookmark, AlertCircle } from "lucide-react";
-import { useListPosts, PostCategory } from "@workspace/api-client-react";
+import { useListPosts, PostCategory } from "../api";
 
 const CATEGORY_COLORS = {
   yellow: "#F5C518",
@@ -86,17 +86,15 @@ export default function Home() {
               layout
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="border-4 bg-[#0a0a0a] group"
+              className="border-4 bg-white group"
               style={{ borderColor: catColor }}
             >
               <div className="p-4 border-b-2 flex items-center justify-between" style={{ borderColor: catColor }}>
                 <span className="font-bold uppercase tracking-tight">{post.username}</span>
                 <span 
-                  className="px-2 py-1 text-[10px] font-black uppercase text-black"
+                  className="w-3 h-3 rounded-full inline-block"
                   style={{ backgroundColor: catColor }}
-                >
-                  {post.category}
-                </span>
+                />
               </div>
               
               <Link href={`/post/${post.id}`} className="block p-6 hover:bg-white/5 transition-colors cursor-pointer">
