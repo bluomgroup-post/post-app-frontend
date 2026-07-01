@@ -490,14 +490,24 @@ function PostApp() {
 
   if(screen==="splash") return <SplashScreen />;
 
-  const handleLogin = async(email,password)=>{ try{ const d=await api("/auth/login","POST",{email,password}); localStorage.setItem("token",d.token); setToken(d.token); }catch(e){showToast(e.message,COLORS.red);} };
+  const handleLogin = async(identifier,password)=>{
+    try{
+      let d;
+      if(identifier.includes("@")){
+        d=await api("/auth/login","POST",{email:identifier,password});
+      } else {
+        d=await api("/auth/phone-login","POST",{phone:identifier,password});
+      }
+      localStorage.setItem("token",d.token); setToken(d.token);
+    }catch(e){showToast(e.message,COLORS.red);}
+  };
   const handleEmailSuccess = (tok)=>{ setNewToken(tok); setScreen("account-created"); };
   const handlePhoneSuccess = (tok)=>{ setNewToken(tok); setScreen("account-created"); };
   const handleAccountCreatedDone = ()=>{ setScreen("profile-setup"); };
   const handleProfileSetupDone = ()=>{ localStorage.setItem("token",newToken); setToken(newToken); };
   const handleLogout = ()=>{ localStorage.removeItem("token"); setToken(null); setUser(null); setScreen("login"); };
 
-  if(screen==="login") return <LoginScreen onLogin={handleLogin} onGoSignup={()=>setScreen("signup")} onGoPhone={()=>setScreen("phone-login")} onGoPhoneSignup={()=>setScreen("phone-signup")} onGoForgot={()=>setScreen("forgot-password")} toast={toast} />;
+  if(screen==="login") return <LoginScreen onLogin={handleLogin} onGoSignup={()=>setScreen("signup")} onGoPhoneSignup={()=>setScreen("phone-signup")} onGoForgot={()=>setScreen("forgot-password")} toast={toast} />;
   if(screen==="signup") return <EmailSignupScreen onBack={()=>setScreen("login")} onSuccess={handleEmailSuccess} showToast={showToast} />;
   if(screen==="account-created") return <AccountCreatedScreen onContinue={handleAccountCreatedDone} />;
   if(screen==="profile-setup") return <ProfileSetupScreen token={newToken} onDone={handleProfileSetupDone} showToast={showToast} />;
@@ -653,35 +663,60 @@ function ForgotPasswordScreen({ onBack, showToast }) {
   );
 }
 
-function LoginScreen({ onLogin, onGoSignup, onGoPhone, onGoPhoneSignup, onGoForgot, toast }) {
-  const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [showLogin, setShowLogin] = useState(false);
+function LoginScreen({ onLogin, onGoSignup, onGoPhoneSignup, onGoForgot, toast }) {
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [showLogin, setShowLogin] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const doLogin = async () => {
+    if(!identifier.trim()||!password) return;
+    setLoading(true);
+    await onLogin(identifier.trim(), password);
+    setLoading(false);
+  };
+
   return (
     <div style={{minHeight:"100vh",background:COLORS.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <Toast toast={toast} />
-      <div style={{background:"#ffffff",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
+      <div style={{background:"var(--card-bg)",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{fontSize:56,fontWeight:900,letterSpacing:8}}><span style={{color:'#FFD600'}}>P</span><span style={{color:'#00C853'}}>O</span><span style={{color:'#FF1744'}}>S</span><span style={{color:'#29B6F6'}}>T</span></div>
-
         </div>
         {!showLogin ? <>
           <button onClick={onGoPhoneSignup} style={{...btnStyle,marginBottom:10}}>Create Account with Phone</button>
-          <button onClick={onGoSignup} style={{...btnStyle,background:"#f5f5f5",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`,marginBottom:20}}>Create Account with Email</button>
+          <button onClick={onGoSignup} style={{...btnStyle,background:"var(--input-bg)",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`,marginBottom:20}}>Create Account with Email</button>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
-            <div style={{flex:1,height:1,background:"#ddd"}} />
-            <span style={{color:COLORS.muted,fontSize:13,fontWeight:600}}>Already have an account?</span>
-            <div style={{flex:1,height:1,background:"#ddd"}} />
+            <div style={{flex:1,height:1,background:"var(--border)"}} />
+            <span style={{color:"var(--muted)",fontSize:13,fontWeight:600}}>Already have an account?</span>
+            <div style={{flex:1,height:1,background:"var(--border)"}} />
           </div>
-          <button onClick={()=>setShowLogin(true)} style={{...btnStyle,background:"#111",color:"#fff",fontWeight:900,fontSize:16}}>LOG IN →</button>
+          <button onClick={()=>setShowLogin(true)} style={{...btnStyle,background:"#111",color:"#fff",fontWeight:900,fontSize:16}}>Log In</button>
         </> : <>
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" type="email" style={inputStyle} />
-          <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password" style={{...inputStyle,marginTop:12}} onKeyDown={e=>e.key==="Enter"&&onLogin(email,password)} />
-          <button onClick={()=>onLogin(email,password)} style={{...btnStyle,marginTop:20}}>LOG IN →</button>
-          <button onClick={onGoPhone} style={{...btnStyle,marginTop:10,background:"#f5f5f5",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`}}>Log in with Phone</button>
-          <div style={{textAlign:"center",marginTop:12}}>
-            <span onClick={onGoForgot} style={{color:COLORS.muted,cursor:"pointer",fontSize:13}}>Forgot Password?</span>
+          <div style={{fontSize:13,color:"var(--muted)",marginBottom:10,textAlign:"center"}}>Enter your email or phone number</div>
+          <input
+            value={identifier}
+            onChange={e=>setIdentifier(e.target.value)}
+            placeholder="Email or Phone number"
+            style={inputStyle}
+            autoFocus
+          />
+          <input
+            value={password}
+            onChange={e=>setPassword(e.target.value)}
+            placeholder="Password"
+            type="password"
+            style={{...inputStyle,marginTop:12}}
+            onKeyDown={e=>e.key==="Enter"&&doLogin()}
+          />
+          <button onClick={doLogin} disabled={loading} style={{...btnStyle,marginTop:16,opacity:loading?0.7:1}}>
+            {loading ? "Logging in..." : "Log In →"}
+          </button>
+          <div style={{textAlign:"center",marginTop:14}}>
+            <span onClick={onGoForgot} style={{color:"var(--muted)",cursor:"pointer",fontSize:13}}>Forgot Password?</span>
           </div>
-          <div style={{textAlign:"center",marginTop:8,color:COLORS.muted,fontSize:14}}>
-            <span onClick={()=>setShowLogin(false)} style={{color:COLORS.yellow,cursor:"pointer",fontWeight:700}}>← Back</span>
+          <div style={{textAlign:"center",marginTop:10}}>
+            <span onClick={()=>setShowLogin(false)} style={{color:COLORS.yellow,cursor:"pointer",fontWeight:700,fontSize:13}}>← Back</span>
           </div>
         </>}
       </div>
