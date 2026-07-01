@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { useCreatePost, PostCategory } from "@workspace/api-client-react";
+import { useCreatePost, PostCategory } from "../api";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -67,13 +67,13 @@ export default function Create() {
       animate={{ opacity: 1, scale: 1 }}
       className="max-w-xl mx-auto"
     >
-      <h1 className="text-4xl font-black uppercase mb-8 border-b-4 border-white pb-4">
+      <h1 className="text-4xl font-black uppercase mb-8 border-b-4 border-black pb-4">
         Create Post
       </h1>
       
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="space-y-4">
-          <label className="block text-sm font-bold uppercase tracking-wider text-white/60">
+          <label className="block text-sm font-bold uppercase tracking-wider text-black/60">
             Category
           </label>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -99,19 +99,19 @@ export default function Create() {
         </div>
 
         <div className="space-y-4">
-          <label className="block text-sm font-bold uppercase tracking-wider text-white/60">
+          <label className="block text-sm font-bold uppercase tracking-wider text-black/60">
             Content
           </label>
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="What's on your mind?"
-            className="w-full min-h-[150px] p-4 bg-transparent border-4 border-white focus:outline-none focus:border-white/80 resize-none font-medium text-lg placeholder:text-white/30"
+            className="w-full min-h-[150px] p-4 bg-transparent border-4 border-black focus:outline-none focus:border-black/80 resize-none font-medium text-lg placeholder:text-black/30"
           />
         </div>
 
         <div className="space-y-4">
-          <label className="block text-sm font-bold uppercase tracking-wider text-white/60">
+          <label className="block text-sm font-bold uppercase tracking-wider text-black/60">
             Image URL (Optional)
           </label>
           <input
@@ -119,7 +119,7 @@ export default function Create() {
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
             placeholder="https://..."
-            className="w-full p-4 bg-transparent border-4 border-white focus:outline-none focus:border-white/80 font-medium placeholder:text-white/30"
+            className="w-full p-4 bg-transparent border-4 border-black focus:outline-none focus:border-black/80 font-medium placeholder:text-black/30"
           />
           {imageUrl && (
             <div className="mt-4 border-2 border-white/20 p-2">
@@ -131,7 +131,7 @@ export default function Create() {
         <button
           type="submit"
           disabled={createPost.isPending}
-          className="w-full py-4 border-4 border-white bg-white text-black font-black uppercase text-xl hover:bg-transparent hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-4 border-4 border-black bg-black text-white font-black uppercase text-xl hover:bg-transparent hover:text-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {createPost.isPending ? (
             <>
