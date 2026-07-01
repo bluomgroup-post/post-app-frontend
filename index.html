@@ -563,6 +563,11 @@ function HomeTab({ token, user, showToast }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px" }}>
+        {posts.length === 0 && (
+          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: COLORS.muted, fontSize: "14px" }}>
+            Be the first to post!
+          </div>
+        )}
         {posts.map((post, idx) => (
             <BentoPostCard key={post.id} post={post} user={user} onLike={handleLike} onDelete={handleDelete} onComment={handleComment} isLarge={idx % 5 === 0} />
           ))
