@@ -135,19 +135,23 @@ let _currentLang = localStorage.getItem('post_lang') || 'en';
 function t(key) { return (TRANSLATIONS[_currentLang] || TRANSLATIONS['en'])[key] || key; }
 function setAppLang(lang) { _currentLang = lang; localStorage.setItem('post_lang', lang); }
 
-// ── Auto-Translation (Google Translate free API) ──────────────
+// ── Auto-Translation (POST's own — no Google dependency) ───────
 const _translateCache = {};
 const LANG_MAP = { en:"en", hi:"hi", ur:"ur", es:"es", fr:"fr", ar:"ar", pt:"pt", de:"de", zh:"zh-CN", ja:"ja", ru:"ru", bn:"bn", id:"id", tr:"tr" };
 async function translateText(text, targetLang) {
   if (!text || !text.trim()) return text;
   const tl = LANG_MAP[targetLang] || targetLang;
+  if (tl === "en") return text; // no need to translate to/from same lang
   const key = tl + "||" + text;
   if (_translateCache[key]) return _translateCache[key];
   try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(text)}`;
-    const res = await fetch(url);
+    const res = await fetch(`${API}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, target: tl }),
+    });
     const data = await res.json();
-    const translated = data[0].map(seg => seg[0]).join("");
+    const translated = data.translated || text;
     _translateCache[key] = translated;
     return translated;
   } catch(e) {
