@@ -106,7 +106,7 @@ function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
     <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <div style={{ background:"#ffffff", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
+          <div style={{ fontSize:56, fontWeight:900, letterSpacing:8 }}><span style={{color:'#FFD600'}}>P</span><span style={{color:'#00C853'}}>O</span><span style={{color:'#FF1744'}}>S</span><span style={{color:'#29B6F6'}}>T</span></div>
           <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>
             {step==="phone" ? "Join the world 🌐" : step==="otp" ? "Verify OTP" : "Create Account"}
           </div>
@@ -226,7 +226,7 @@ function EmailSignupScreen({ onBack, onSuccess, showToast }) {
     <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <div style={{ background:"#ffffff", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
+          <div style={{ fontSize:56, fontWeight:900, letterSpacing:8 }}><span style={{color:'#FFD600'}}>P</span><span style={{color:'#00C853'}}>O</span><span style={{color:'#FF1744'}}>S</span><span style={{color:'#29B6F6'}}>T</span></div>
           <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>
             {step==="email" ? "Join the world 🌐" : step==="otp" ? "Verify OTP" : "Create Account"}
           </div>
@@ -305,7 +305,7 @@ function PhoneLoginScreen({ onBack, onSuccess, showToast }) {
     <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <div style={{ background:"#ffffff", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
+          <div style={{ fontSize:56, fontWeight:900, letterSpacing:8 }}><span style={{color:'#FFD600'}}>P</span><span style={{color:'#00C853'}}>O</span><span style={{color:'#FF1744'}}>S</span><span style={{color:'#29B6F6'}}>T</span></div>
           <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>Sign In with Phone</div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
@@ -388,7 +388,7 @@ function PostApp() {
     <div style={{minHeight:"100vh",background:COLORS.dark,color:COLORS.text,paddingBottom:80}}>
       <Toast toast={toast} />
       <div style={{position:"sticky",top:0,background:"#050505",borderBottom:"1px solid #e0e0e0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:50}}>
-        <span style={{fontSize:28,fontWeight:900,letterSpacing:6,color:COLORS.yellow}}>POST</span>
+        <span style={{fontSize:28,fontWeight:900,letterSpacing:6}}><span style={{color:'#FFD600'}}>P</span><span style={{color:'#00C853'}}>O</span><span style={{color:'#FF1744'}}>S</span><span style={{color:'#29B6F6'}}>T</span></span>
         <button onClick={handleLogout} style={{color:COLORS.muted,fontSize:12,background:"none",border:"none",cursor:"pointer"}}>Logout</button>
       </div>
       {tab==="home"&&<HomeTab token={token} user={user} showToast={showToast} />}
@@ -412,7 +412,7 @@ function LoginScreen({ onLogin, onGoSignup, onGoPhone, onGoPhoneSignup, toast })
       <Toast toast={toast} />
       <div style={{background:"#ffffff",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
         <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{fontSize:56,fontWeight:900,color:COLORS.yellow,letterSpacing:8}}>POST</div>
+          <div style={{fontSize:56,fontWeight:900,letterSpacing:8}}><span style={{color:'#FFD600'}}>P</span><span style={{color:'#00C853'}}>O</span><span style={{color:'#FF1744'}}>S</span><span style={{color:'#29B6F6'}}>T</span></div>
 
         </div>
         {!showLogin ? <>
