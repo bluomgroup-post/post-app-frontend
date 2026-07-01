@@ -507,6 +507,9 @@ function PostApp() {
   const [toast, setToast] = useState(null);
   const [newToken, setNewToken] = useState(null);
   const [refBy, setRefBy] = useState(null);
+  const [viewUser, setViewUser] = useState(null); // user_id of profile being viewed
+
+  const onViewProfile = (uid) => { if (uid && uid !== user?.id) setViewUser(uid); };
 
   const showToast = (msg, color=COLORS.yellow) => { setToast({msg,color}); setTimeout(()=>setToast(null),3000); };
 
@@ -587,13 +590,23 @@ function PostApp() {
 
         </div>
       </div>
-      {tab==="home"&&<HomeTab token={token} user={user} showToast={showToast} />}
-      {tab==="discover"&&<DiscoverTab token={token} user={user} showToast={showToast} />}
-      {tab==="friends"&&<FriendsTab token={token} user={user} showToast={showToast} />}
+      {tab==="home"&&<HomeTab token={token} user={user} showToast={showToast} onViewProfile={onViewProfile} />}
+      {tab==="discover"&&<DiscoverTab token={token} user={user} showToast={showToast} onViewProfile={onViewProfile} />}
+      {tab==="friends"&&<FriendsTab token={token} user={user} showToast={showToast} onViewProfile={onViewProfile} />}
       {tab==="messages"&&<MessagesTab token={token} user={user} setUser={setUser} showToast={showToast} />}
       {tab==="profile"&&<ProfileTab token={token} user={user} setUser={setUser} showToast={showToast} />}
       {tab==="settings"&&<SettingsScreen token={token} user={user} setUser={setUser} showToast={showToast} onBack={()=>setTab("profile")} onLoggedOut={handleLogout} />}
       {tab==="invite"&&<InviteFriendsScreen user={user} showToast={showToast} onBack={()=>setTab("home")} />}
+      {viewUser&&(
+        <UserProfileScreen
+          userId={viewUser}
+          token={token}
+          currentUser={user}
+          onClose={()=>setViewUser(null)}
+          showToast={showToast}
+          onGoMessages={(profileUser)=>{ setViewUser(null); setTab("messages"); }}
+        />
+      )}
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:"var(--nav-bg)",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-around",alignItems:"center",padding:"8px 0 10px",zIndex:50}}>
         {[
           {id:"home",label:t("home"),svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill={active?"#FFD600":"none"} stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>},
@@ -957,7 +970,7 @@ function AccountCreatedScreen({ onContinue }) {
   );
 }
 
-function HomeTab({ token, user, showToast }) {
+function HomeTab({ token, user, showToast, onViewProfile }) {
   const [posts, setPosts] = useState([]);
   const [showCompose, setShowCompose] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1012,7 +1025,7 @@ function HomeTab({ token, user, showToast }) {
           </div>
         ) : (
           posts.map((post, idx) => (
-            <BentoPostCard key={post.id} post={post} user={user} onLike={handleLike} onDelete={handleDelete} onComment={handleComment} isLarge={idx % 5 === 0} />
+            <BentoPostCard key={post.id} post={post} user={user} onLike={handleLike} onDelete={handleDelete} onComment={handleComment} isLarge={idx % 5 === 0} onViewProfile={onViewProfile} />
           ))
         )}
       </div>
@@ -1024,25 +1037,29 @@ function HomeTab({ token, user, showToast }) {
   );
 }
 
-function BentoPostCard({ post, user, onLike, onDelete, onComment, isLarge }) {
+function BentoPostCard({ post, user, onLike, onDelete, onComment, isLarge, onViewProfile }) {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const myLike = post.likes?.find(l => l.user_id === user.id);
+  const canViewProfile = post.user_id !== user.id && onViewProfile;
 
   return (
-    <div style={{ background: COLORS.card, border: `2px solid ${post.accent || COLORS.yellow}`, borderRadius: "20px", padding: "20px", display: "flex", flexDirection: "column", gap: "12px", transition: "transform 0.2s", gridColumn: isLarge ? "span 2" : "span 1", position: "relative", overflow: "hidden" }}
+    <div style={{ background: "var(--card-bg)", border: `2px solid ${post.accent || COLORS.yellow}`, borderRadius: "20px", padding: "20px", display: "flex", flexDirection: "column", gap: "12px", transition: "transform 0.2s", gridColumn: isLarge ? "span 2" : "span 1", position: "relative", overflow: "hidden" }}
       onMouseEnter={e => e.currentTarget.style.transform = "translateY(-4px)"}
       onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-        <div style={{ display: "flex", gap: "12px", alignItems: "start", flex: 1 }}>
+        <div
+          onClick={() => canViewProfile && onViewProfile(post.user_id)}
+          style={{ display: "flex", gap: "12px", alignItems: "start", flex: 1, cursor: canViewProfile ? "pointer" : "default" }}
+        >
           <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: post.avatar_bg || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "900", fontSize: "20px", flexShrink: 0, overflow: "hidden" }}>
             {post.avatar_photo ? <img src={post.avatar_photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : post.avatar_letter}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: "700", fontSize: "14px" }}>{post.user_name}</div>
-            <div style={{ color: COLORS.muted, fontSize: "12px" }}>{post.user_handle}</div>
-            {post.location && <div style={{ color: COLORS.muted, fontSize: "11px", marginTop: "4px" }}>📍 {post.location}</div>}
+            <div style={{ fontWeight: "700", fontSize: "14px", color: "var(--text)" }}>{post.user_name}</div>
+            <div style={{ color: "var(--muted)", fontSize: "12px" }}>{post.user_handle}</div>
+            {post.location && <div style={{ color: "var(--muted)", fontSize: "11px", marginTop: "4px" }}>📍 {post.location}</div>}
           </div>
         </div>
         {post.user_id === user.id && (
@@ -1147,27 +1164,35 @@ function ComposeModal({ token, user, onClose, onPost, showToast }) {
   );
 }
 
-function DiscoverTab({ token, user, showToast }) {
-  const [users,setUsers]=useState([]); const [q,setQ]=useState(""); const [loading,setLoading]=useState(true);
-  const [requestedIds,setRequestedIds]=useState(new Set());
+function DiscoverTab({ token, user, showToast, onViewProfile }) {
+  const [users,setUsers]=useState([]);
+  const [q,setQ]=useState("");
+  const [loading,setLoading]=useState(true);
   const [friendIds,setFriendIds]=useState(new Set());
+  const [requestedIds,setRequestedIds]=useState(new Set());   // outgoing pending
+  const [incomingIds,setIncomingIds]=useState(new Set());     // incoming pending — show "Respond"
   const [followingIds,setFollowingIds]=useState(new Set());
   const [actionLoading,setActionLoading]=useState({});
 
-  // Load existing friend/following state on mount
-  useEffect(()=>{
+  const loadSocial=()=>{
     api("/friends","GET",null,token).then(d=>{
-      const fids=new Set((d.friends||[]).map(f=>f.id));
-      const rids=new Set([...(d.pending_outgoing||[]).map(r=>r.to_id)]);
-      setFriendIds(fids);
-      setRequestedIds(rids);
+      setFriendIds(new Set((d.friends||[]).map(f=>f.id)));
+      setRequestedIds(new Set((d.pending_outgoing||[]).map(r=>r.to_id)));
+      setIncomingIds(new Set((d.pending_incoming||[]).map(r=>r.from_id)));
     }).catch(()=>{});
     api("/auth/me","GET",null,token).then(me=>{
       setFollowingIds(new Set(me.following||[]));
     }).catch(()=>{});
-  },[]);
+  };
+  useEffect(()=>{ loadSocial(); },[]);
 
-  useEffect(()=>{ setLoading(true); api(`/users${q?`?q=${encodeURIComponent(q)}`:""}`, "GET",null,token).then(d=>setUsers(d.users||d)).catch(()=>{}).finally(()=>setLoading(false)); },[q]);
+  useEffect(()=>{
+    setLoading(true);
+    api(`/users${q ? `?q=${encodeURIComponent(q)}` : ""}`, "GET", null, token)
+      .then(d=>setUsers(d.users||d))
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  },[q]);
 
   const sendRequest=async(uid)=>{
     setActionLoading(a=>({...a,[uid+"_req"]:true}));
@@ -1179,12 +1204,23 @@ function DiscoverTab({ token, user, showToast }) {
     setActionLoading(a=>({...a,[uid+"_req"]:false}));
   };
 
-  const toggleFollow=async(uid,isFollowing)=>{
+  const acceptRequest=async(uid)=>{
+    setActionLoading(a=>({...a,[uid+"_req"]:true}));
+    try{
+      await api("/friends/accept","POST",{target_user_id:uid},token);
+      setFriendIds(s=>new Set([...s,uid]));
+      setIncomingIds(s=>{const n=new Set(s);n.delete(uid);return n;});
+      showToast("Friends now! 🎉",COLORS.green);
+    }catch(e){showToast(e.message,COLORS.red);}
+    setActionLoading(a=>({...a,[uid+"_req"]:false}));
+  };
+
+  const toggleFollow=async(uid, isFollowing)=>{
     setActionLoading(a=>({...a,[uid+"_follow"]:true}));
     try{
-      await api(`/users/${uid}/${isFollowing?"unfollow":"follow"}","POST",null,token);
+      await api(`/users/${uid}/${isFollowing ? "unfollow" : "follow"}`, "POST", null, token);
       setFollowingIds(s=>{const n=new Set(s); isFollowing?n.delete(uid):n.add(uid); return n;});
-      showToast(isFollowing?"Unfollowed":"Following! 👍",isFollowing?COLORS.muted:COLORS.blue);
+      showToast(isFollowing ? "Unfollowed" : "Following! 👍", isFollowing ? COLORS.muted : COLORS.blue);
     }catch(e){showToast(e.message,COLORS.red);}
     setActionLoading(a=>({...a,[uid+"_follow"]:false}));
   };
@@ -1194,34 +1230,41 @@ function DiscoverTab({ token, user, showToast }) {
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Search people..." style={{...inputStyle,marginBottom:16}} />
       {loading&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Loading...</div>}
       {users.map(u=>{
-        const isFriend=friendIds.has(u.id);
-        const isRequested=requestedIds.has(u.id);
-        const isFollowing=followingIds.has(u.id);
+        const isFriend    = friendIds.has(u.id);
+        const isRequested = requestedIds.has(u.id);
+        const hasIncoming = incomingIds.has(u.id);
+        const isFollowing = followingIds.has(u.id);
+        const reqLoading  = !!actionLoading[u.id+"_req"];
+        const folLoading  = !!actionLoading[u.id+"_follow"];
         return (
-          <div key={u.id} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:44,height:44,borderRadius:14,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
-              {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:u.avatar_letter}
+          <div key={u.id} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
+            {/* Clickable avatar + info → open profile */}
+            <div onClick={()=>onViewProfile&&onViewProfile(u.id)} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer",minWidth:0}}>
+              <div style={{width:44,height:44,borderRadius:14,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
+                {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:u.avatar_letter}
+              </div>
+              <div style={{minWidth:0}}>
+                <div style={{fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
+                <div style={{color:"var(--muted)",fontSize:12}}>{u.handle}{u.location?` • ${u.location}`:""}</div>
+              </div>
             </div>
-            <div style={{flex:1}}><div style={{fontWeight:700}}>{u.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{u.handle}{u.location?` • ${u.location}`:""}</div></div>
-            <div style={{display:"flex",gap:6,flexShrink:0}}>
+            {/* Action buttons — stop propagation so card click doesn't fire */}
+            <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
               {/* Follow / Unfollow */}
               <button
-                onClick={()=>toggleFollow(u.id,isFollowing)}
-                disabled={!!actionLoading[u.id+"_follow"]}
-                style={{background:isFollowing?"#e0e0e0":COLORS.blue,color:isFollowing?"#333":"#fff",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:actionLoading[u.id+"_follow"]?0.6:1}}>
-                {isFollowing?"Following":"Follow"}
+                onClick={()=>toggleFollow(u.id, isFollowing)}
+                disabled={folLoading}
+                style={{background:isFollowing?"#e0e0e0":COLORS.blue,color:isFollowing?"#333":"#fff",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:folLoading?0.6:1}}>
+                {isFollowing ? "Following" : "Follow"}
               </button>
-              {/* Connect / Requested / Friends */}
+              {/* Connect state machine */}
               {isFriend
                 ? <button disabled style={{background:"#e8f5e9",color:COLORS.green,border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,fontSize:12}}>Friends ✓</button>
-                : isRequested
-                  ? <button disabled style={{background:"#f5f5f5",color:COLORS.muted,border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,fontSize:12}}>Requested</button>
-                  : <button
-                      onClick={()=>sendRequest(u.id)}
-                      disabled={!!actionLoading[u.id+"_req"]}
-                      style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:actionLoading[u.id+"_req"]?0.6:1}}>
-                      Connect
-                    </button>
+                : hasIncoming
+                  ? <button onClick={()=>acceptRequest(u.id)} disabled={reqLoading} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:reqLoading?0.6:1}}>Accept</button>
+                  : isRequested
+                    ? <button disabled style={{background:"#f5f5f5",color:"var(--muted)",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,fontSize:12}}>Requested</button>
+                    : <button onClick={()=>sendRequest(u.id)} disabled={reqLoading} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:reqLoading?0.6:1}}>Connect</button>
               }
             </div>
           </div>
@@ -1231,12 +1274,180 @@ function DiscoverTab({ token, user, showToast }) {
   );
 }
 
-function FriendsTab({ token, user, showToast }) {
+function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onGoMessages }) {
+  const [profile,setProfile]=useState(null);
+  const [posts,setPosts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [isFollowing,setIsFollowing]=useState(false);
+  const [friendStatus,setFriendStatus]=useState("none"); // none | pending_out | pending_in | friends
+  const [actLoading,setActLoading]=useState(false);
+
+  useEffect(()=>{
+    setLoading(true);
+    Promise.all([
+      api(`/users/${userId}`,"GET",null,token),
+      api("/friends","GET",null,token),
+      api(`/posts?user_id=${userId}`,"GET",null,token),
+      api("/auth/me","GET",null,token),
+    ]).then(([prof,friendData,postsData,me])=>{
+      setProfile(prof);
+      setIsFollowing((me.following||[]).includes(userId));
+      const isFr=(friendData.friends||[]).some(f=>f.id===userId);
+      const isPendOut=(friendData.pending_outgoing||[]).some(r=>r.to_id===userId);
+      const isPendIn=(friendData.pending_incoming||[]).some(r=>r.from_id===userId);
+      setFriendStatus(isFr?"friends":isPendOut?"pending_out":isPendIn?"pending_in":"none");
+      setPosts((postsData.posts||[]).filter(p=>p.user_id===userId));
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  },[userId]);
+
+  const fmtNum=n=>n>=1000?(n/1000).toFixed(1)+"K":(n||0);
+
+  const toggleFollow=async()=>{
+    setActLoading(true);
+    try{
+      await api(`/users/${userId}/${isFollowing?"unfollow":"follow"}`,"POST",null,token);
+      const delta=isFollowing?-1:1;
+      setIsFollowing(f=>!f);
+      setProfile(p=>p?{...p,stats:{...(p.stats||{}),followers:(p.stats?.followers||0)+delta}}:p);
+      showToast(isFollowing?"Unfollowed":"Following! 👍",isFollowing?COLORS.muted:COLORS.blue);
+    }catch(e){showToast(e.message,COLORS.red);}
+    setActLoading(false);
+  };
+
+  const sendRequest=async()=>{
+    setActLoading(true);
+    try{
+      await api("/friends/request","POST",{target_user_id:userId},token);
+      setFriendStatus("pending_out");
+      showToast("Friend request sent! 🤝",COLORS.green);
+    }catch(e){showToast(e.message,COLORS.red);}
+    setActLoading(false);
+  };
+
+  const acceptRequest=async()=>{
+    setActLoading(true);
+    try{
+      await api("/friends/accept","POST",{target_user_id:userId},token);
+      setFriendStatus("friends");
+      showToast("Friends now! 🎉",COLORS.green);
+    }catch(e){showToast(e.message,COLORS.red);}
+    setActLoading(false);
+  };
+
+  if(loading) return (
+    <div style={{position:"fixed",inset:0,background:"var(--bg)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{color:"var(--muted)",fontSize:16}}>Loading profile... ⏳</div>
+    </div>
+  );
+  if(!profile) return (
+    <div style={{position:"fixed",inset:0,background:"var(--bg)",zIndex:300,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+      <div style={{fontSize:48}}>😕</div>
+      <div style={{color:"var(--muted)"}}>Profile not found</div>
+      <button onClick={onClose} style={{...btnStyle,width:"auto",padding:"10px 24px"}}>← Back</button>
+    </div>
+  );
+
+  const stats=profile.stats||{posts:0,followers:0,following:0};
+  const ConnectBtn=()=>{
+    if(friendStatus==="friends") return <button disabled style={{background:"#e8f5e9",color:COLORS.green,border:"none",borderRadius:12,padding:"8px 16px",fontWeight:700,fontSize:13}}>Friends ✓</button>;
+    if(friendStatus==="pending_out") return <button disabled style={{background:"#f5f5f5",color:"var(--muted)",border:"none",borderRadius:12,padding:"8px 16px",fontWeight:700,fontSize:13}}>Requested</button>;
+    if(friendStatus==="pending_in") return <button onClick={acceptRequest} disabled={actLoading} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:12,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:13,opacity:actLoading?0.6:1}}>Accept ✓</button>;
+    return <button onClick={sendRequest} disabled={actLoading} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:12,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:13,opacity:actLoading?0.6:1}}>Connect</button>;
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"var(--bg)",zIndex:300,overflowY:"auto"}}>
+      {/* Sticky top bar */}
+      <div style={{position:"sticky",top:0,background:"var(--nav-bg)",borderBottom:"1px solid var(--border)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12,zIndex:10}}>
+        <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text)",display:"flex",alignItems:"center",padding:4}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <div style={{fontWeight:900,fontSize:16,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name}</div>
+      </div>
+
+      {/* Cover */}
+      <div style={{height:130,background:profile.cover_photo||profile.cover_video?"transparent":`linear-gradient(135deg,${normalizeColor(profile.avatar_bg)||COLORS.yellow}55 0%,#f5f5f522 100%)`,overflow:"hidden"}}>
+        {profile.cover_video
+          ? <video src={profile.cover_video} autoPlay muted loop playsInline style={{width:"100%",height:"100%",objectFit:"cover"}} />
+          : profile.cover_photo && <img src={profile.cover_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+        }
+      </div>
+
+      <div style={{padding:"0 16px 32px"}}>
+        {/* Avatar row */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginTop:-36,marginBottom:12}}>
+          <div style={{width:72,height:72,borderRadius:20,background:normalizeColor(profile.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:30,overflow:"hidden",border:"3px solid var(--bg)",boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}}>
+            {profile.profile_video
+              ? <video src={profile.profile_video} autoPlay muted loop playsInline style={{width:"100%",height:"100%",objectFit:"cover"}} />
+              : profile.avatar_photo
+                ? <img src={profile.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+                : profile.avatar_letter}
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button onClick={toggleFollow} disabled={actLoading} style={{background:isFollowing?"#e0e0e0":COLORS.blue,color:isFollowing?"#333":"#fff",border:"none",borderRadius:12,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:13,opacity:actLoading?0.6:1}}>
+              {isFollowing?"Following ✓":"Follow"}
+            </button>
+            <ConnectBtn />
+            {friendStatus==="friends" && onGoMessages && (
+              <button onClick={()=>onGoMessages(profile)} style={{background:"var(--input-bg)",border:"1px solid var(--border)",borderRadius:12,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:16,color:"var(--text)"}}>💬</button>
+            )}
+          </div>
+        </div>
+
+        {/* Name / handle / category */}
+        <div style={{fontWeight:900,fontSize:20,color:"var(--text)"}}>{profile.name}</div>
+        <div style={{color:"var(--muted)",fontSize:14,marginTop:2}}>@{profile.username||(profile.handle||"").replace("@","")}</div>
+        {profile.category&&<div style={{display:"inline-block",background:"#f0f0f0",color:"#444",fontSize:12,fontWeight:600,borderRadius:20,padding:"3px 12px",marginTop:6}}>{profile.category}</div>}
+        {profile.about&&<div style={{fontSize:14,marginTop:8,lineHeight:1.55,color:"var(--text)"}}>{profile.about}</div>}
+        <div style={{display:"flex",gap:14,marginTop:8,flexWrap:"wrap"}}>
+          {profile.location&&<span style={{color:"var(--muted)",fontSize:13}}>📍 {profile.location}</span>}
+          {profile.website&&<a href={profile.website.startsWith("http")?profile.website:`https://${profile.website}`} target="_blank" style={{color:COLORS.blue,fontSize:13,textDecoration:"none"}}>🔗 {profile.website.replace(/^https?:\/\//,"")}</a>}
+        </div>
+
+        {/* Stats */}
+        <div style={{display:"flex",borderTop:"1px solid var(--border)",borderBottom:"1px solid var(--border)",margin:"14px 0",padding:"12px 0"}}>
+          {[["Posts",fmtNum(stats.posts)],["Followers",fmtNum(stats.followers)],["Following",fmtNum(stats.following)]].map(([label,val])=>(
+            <div key={label} style={{flex:1,textAlign:"center"}}>
+              <div style={{fontWeight:900,fontSize:22,color:"var(--text)"}}>{val}</div>
+              <div style={{color:"var(--muted)",fontSize:12,marginTop:2}}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Posts */}
+        <div style={{fontWeight:700,color:COLORS.yellow,fontSize:13,letterSpacing:2,marginBottom:12}}>POSTS</div>
+        {posts.length===0
+          ? <div style={{textAlign:"center",color:"var(--muted)",padding:30}}>No posts yet 🌱</div>
+          : <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {posts.map(post=>(
+                <div key={post.id} style={{background:"var(--card-bg)",border:`2px solid ${post.accent||COLORS.yellow}`,borderRadius:16,padding:"14px 16px"}}>
+                  <div style={{fontSize:14,lineHeight:1.6,color:"var(--text)"}}>{post.content}</div>
+                  {post.location&&<div style={{color:"var(--muted)",fontSize:12,marginTop:4}}>📍 {post.location}</div>}
+                  <div style={{display:"flex",gap:16,marginTop:8,color:"var(--muted)",fontSize:12}}>
+                    <span>❤️ {post.likes?.length||0}</span>
+                    <span>💬 {post.comments?.length||0}</span>
+                    <span>👁 {post.views?.length||0}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+        }
+      </div>
+    </div>
+  );
+}
+
+function FriendsTab({ token, user, showToast, onViewProfile }) {
   const [data,setData]=useState({friends:[],pending_incoming:[],pending_outgoing:[]});
   const load=async()=>{ try{const d=await api("/friends","GET",null,token);setData(d);}catch(e){} };
   useEffect(()=>{load();},[]);
-  const accept=async(uid)=>{ await api("/friends/accept","POST",{target_user_id:uid},token);showToast("Friends now! 🎉",COLORS.green);load(); };
-  const decline=async(uid)=>{ await api("/friends/decline","POST",{target_user_id:uid},token);load(); };
+  const accept=async(uid)=>{ try{ await api("/friends/accept","POST",{target_user_id:uid},token);showToast("Friends now! 🎉",COLORS.green);load(); }catch(e){showToast(e.message,COLORS.red);} };
+  const decline=async(uid)=>{ try{ await api("/friends/decline","POST",{target_user_id:uid},token);load(); }catch(e){} };
+  const Avatar=({u,size=40})=>(
+    <div style={{width:size,height:size,borderRadius:size/2.5,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:size*0.45,flexShrink:0,overflow:"hidden"}}>
+      {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:(u.avatar_letter||"?")}
+    </div>
+  );
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
       {data.pending_incoming.length>0&&<>
@@ -1244,27 +1455,33 @@ function FriendsTab({ token, user, showToast }) {
         {data.pending_incoming.map(r=>{
           const fu=r.from_user||{};
           return (
-          <div key={r.id} style={{background:COLORS.card,border:"1px solid #ddd",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:40,height:40,borderRadius:12,background:normalizeColor(fu.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,flexShrink:0,overflow:"hidden"}}>
-              {fu.avatar_photo?<img src={fu.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:(fu.avatar_letter||"?")}
+          <div key={r.id} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+            <div onClick={()=>onViewProfile&&fu.id&&onViewProfile(fu.id||r.from_id)} style={{display:"flex",alignItems:"center",gap:10,flex:1,cursor:"pointer"}}>
+              <Avatar u={fu} size={40} />
+              <div>
+                <div style={{fontWeight:700,fontSize:14,color:"var(--text)"}}>{fu.name||r.from_id}</div>
+                <div style={{color:"var(--muted)",fontSize:12}}>{fu.handle||""}</div>
+              </div>
             </div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,fontSize:14}}>{fu.name||r.from_id}</div>
-              <div style={{color:COLORS.muted,fontSize:12}}>{fu.handle||""}</div>
+            <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
+              <button onClick={()=>accept(r.from_id)} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Accept</button>
+              <button onClick={()=>decline(r.from_id)} style={{background:"#e0e0e0",color:"#111",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Decline</button>
             </div>
-            <button onClick={()=>accept(r.from_id)} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12,marginRight:6}}>Accept</button>
-            <button onClick={()=>decline(r.from_id)} style={{background:"#e0e0e0",color:"#111111",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Decline</button>
           </div>
         );})}
       </>}
       <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,marginTop:16,fontSize:13,letterSpacing:2}}>FRIENDS 🤝</div>
-      {data.friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:30}}>No friends yet. Start discovering! 🔍</div>}
+      {data.friends.length===0&&<div style={{color:"var(--muted)",textAlign:"center",padding:30}}>No friends yet. Start discovering! 🔍</div>}
       {data.friends.map(f=>(
-        <div key={f.id} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:40,height:40,borderRadius:12,background:normalizeColor(f.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden"}}>
+        <div key={f.id} onClick={()=>onViewProfile&&onViewProfile(f.id)} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+          <div style={{width:40,height:40,borderRadius:12,background:normalizeColor(f.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden",flexShrink:0}}>
             {f.avatar_photo?<img src={f.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:f.avatar_letter}
           </div>
-          <div><div style={{fontWeight:700}}>{f.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{f.handle}</div></div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700,color:"var(--text)"}}>{f.name}</div>
+            <div style={{color:"var(--muted)",fontSize:12}}>{f.handle}</div>
+          </div>
+          <span style={{color:"var(--muted)",fontSize:18}}>›</span>
         </div>
       ))}
     </div>
