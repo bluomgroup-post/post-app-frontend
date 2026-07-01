@@ -491,7 +491,7 @@ function PostApp() {
   },[]);
 
   useEffect(()=>{
-    if(token){ api("/auth/me","GET",null,token).then(u=>{setUser(u);setScreen("app");}).catch((e)=>{if(e&&e.secondaryRequired){setNewToken(token);setScreen(e.secondaryRequired==="phone"?"add-phone":"add-email");}else{localStorage.removeItem("token");setToken(null);setScreen("login");}); }
+    if(token){ api("/auth/me","GET",null,token).then(u=>{setUser(u);setScreen("app");}).catch((e)=>{if(e&&e.secondaryRequired){setNewToken(token);setScreen(e.secondaryRequired==="phone"?"add-phone":"add-email");}else{localStorage.removeItem("token");setToken(null);setScreen("login");}}); }
   },[token]);
 
   if(screen==="splash") return <SplashScreen />;
