@@ -27,6 +27,7 @@ const COLORS = {
   dark: "#FFFFFF", card: "#FFFFFF", text: "#111111", muted: "#666666",
 };
 const ACCENTS = [COLORS.yellow, COLORS.green, COLORS.red, COLORS.blue];
+const normalizeColor = (c) => c && c.toUpperCase() === "#2979FF" ? "#29B6F6" : c;
 
 async function api(path, method = "GET", body = null, token = null) {
   const headers = { "Content-Type": "application/json" };
@@ -673,7 +674,7 @@ function ComposeModal({ token, user, onClose, onPost, showToast }) {
 
         {user && (
           <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
-            <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: user.avatar_bg || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "900", fontSize: "20px", overflow: "hidden" }}>
+            <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: normalizeColor(user.avatar_bg) || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "900", fontSize: "20px", overflow: "hidden" }}>
               {user.avatar_photo ? <img src={user.avatar_photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : user.avatar_letter}
             </div>
             <div>
@@ -715,7 +716,7 @@ function DiscoverTab({ token, user, showToast }) {
       {loading&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Loading...</div>}
       {users.map(u=>(
         <div key={u.id} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:44,height:44,borderRadius:14,background:u.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
+          <div style={{width:44,height:44,borderRadius:14,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
             {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:u.avatar_letter}
           </div>
           <div style={{flex:1}}><div style={{fontWeight:700}}>{u.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{u.handle}{u.location?` • ${u.location}`:""}</div></div>
@@ -748,7 +749,7 @@ function FriendsTab({ token, user, showToast }) {
       {data.friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:30}}>No friends yet. Start discovering! 🔍</div>}
       {data.friends.map(f=>(
         <div key={f.id} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:40,height:40,borderRadius:12,background:f.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden"}}>
+          <div style={{width:40,height:40,borderRadius:12,background:normalizeColor(f.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden"}}>
             {f.avatar_photo?<img src={f.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:f.avatar_letter}
           </div>
           <div><div style={{fontWeight:700}}>{f.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{f.handle}</div></div>
@@ -798,7 +799,7 @@ function MessagesTab({ token, user, showToast }) {
       {friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:40}}>Add friends to start chatting!</div>}
       {friends.map(f=>(
         <div key={f.id} onClick={()=>setSelected(f)} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
-          <div style={{width:44,height:44,borderRadius:14,background:f.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20}}>{f.avatar_letter}</div>
+          <div style={{width:44,height:44,borderRadius:14,background:normalizeColor(f.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20}}>{f.avatar_letter}</div>
           <div><div style={{fontWeight:700}}>{f.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{f.handle}</div></div>
         </div>
       ))}
@@ -812,7 +813,7 @@ function ProfileTab({ token, user, setUser, showToast }) {
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
       <div style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:20,padding:24,textAlign:"center"}}>
-        <div style={{width:80,height:80,borderRadius:24,background:user.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:36,margin:"0 auto 16px",overflow:"hidden"}}>
+        <div style={{width:80,height:80,borderRadius:24,background:normalizeColor(user.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:36,margin:"0 auto 16px",overflow:"hidden"}}>
           {user.avatar_photo?<img src={user.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:user.avatar_letter}
         </div>
         <div style={{fontWeight:900,fontSize:22}}>{user.name}</div>
