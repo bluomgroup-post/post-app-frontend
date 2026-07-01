@@ -911,10 +911,7 @@ function ProfileTab({ token, user, setUser, showToast }) {
             <div style={{ fontWeight: 900, fontSize: 20 }}>{user.name}</div>
             <div style={{ color: COLORS.muted, fontSize: 14, marginTop: 2 }}>@{user.username || user.handle?.replace("@","")}</div>
             {user.category && <div style={{ display:"inline-block", background:"#f0f0f0", color:"#444", fontSize:12, fontWeight:600, borderRadius:20, padding:"3px 12px", marginTop:6 }}>{user.category}</div>}
-            {(user.gender || user.dob) && <div style={{ display:"flex", gap:10, alignItems:"center", marginTop:6, flexWrap:"wrap" }}>
-              {user.gender && <span style={{ fontSize:13, color:COLORS.muted }}>⚧ {user.gender}</span>}
-              {user.dob && <span style={{ fontSize:13, color:COLORS.muted }}>🎂 {new Date().getFullYear()-new Date(user.dob).getFullYear()} yrs</span>}
-            </div>}
+
             {user.about && <div style={{ fontSize: 14, marginTop: 8, lineHeight: 1.55, color: "#333" }}>{user.about}</div>}
             <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
               {user.location && <span style={{ color: COLORS.muted, fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{user.location}</span>}
