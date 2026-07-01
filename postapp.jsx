@@ -1407,6 +1407,67 @@ const LangCtx = createContext(T.en);
 // Proxy so missing keys always fall back to English
 const makeLangProxy = (obj) => new Proxy(obj, { get: (t, k) => (k in t ? t[k] : T.en[k]) });
 
+// Phone country code → language code (falls back to 'en')
+const COUNTRY_CODE_TO_LANG = {
+  "+91": "hi",   // India → Hindi
+  "+92": "ur",   // Pakistan → Urdu (falls back to en if not in T)
+  "+880": "bn",  // Bangladesh → Bengali
+  "+33": "fr",   // France → French
+  "+32": "fr",   // Belgium → French
+  "+225": "fr",  // Ivory Coast → French
+  "+221": "fr",  // Senegal → French
+  "+237": "fr",  // Cameroon → French
+  "+250": "fr",  // Rwanda → French
+  "+34": "es",   // Spain → Spanish
+  "+52": "es",   // Mexico → Spanish
+  "+54": "es",   // Argentina → Spanish
+  "+55": "pt",   // Brazil → Portuguese
+  "+351": "pt",  // Portugal → Portuguese
+  "+49": "de",   // Germany → German
+  "+43": "de",   // Austria → German
+  "+41": "de",   // Switzerland → German (simplified)
+  "+7":  "ru",   // Russia → Russian
+  "+380": "ru",  // Ukraine → Russian (simplified)
+  "+86": "zh",   // China → Chinese
+  "+886": "zh",  // Taiwan → Chinese
+  "+65": "zh",   // Singapore → Chinese (simplified)
+  "+81": "ja",   // Japan → Japanese
+  "+82": "ko",   // South Korea → Korean
+  "+90": "tr",   // Turkey → Turkish
+  "+994": "tr",  // Azerbaijan → Turkish (simplified)
+  "+62": "id",   // Indonesia → Indonesian
+  "+60": "id",   // Malaysia → Malay (mapped to Indonesian)
+  "+966": "ar",  // Saudi Arabia → Arabic
+  "+971": "ar",  // UAE → Arabic
+  "+20":  "ar",  // Egypt → Arabic
+  "+962": "ar",  // Jordan → Arabic
+  "+965": "ar",  // Kuwait → Arabic
+  "+968": "ar",  // Oman → Arabic
+  "+974": "ar",  // Qatar → Arabic
+  "+212": "ar",  // Morocco → Arabic
+  "+213": "ar",  // Algeria → Arabic
+  "+216": "ar",  // Tunisia → Arabic
+  "+254": "sw",  // Kenya → Swahili
+  "+255": "sw",  // Tanzania → Swahili
+  "+256": "sw",  // Uganda → Swahili
+  "+57": "es",   // Colombia → Spanish
+  "+56": "es",   // Chile → Spanish
+  "+51": "es",   // Peru → Spanish
+  "+58": "es",   // Venezuela → Spanish
+  "+234": "en",  // Nigeria → English
+  "+233": "en",  // Ghana → English
+  "+27":  "en",  // South Africa → English
+  "+61":  "en",  // Australia → English
+  "+64":  "en",  // New Zealand → English
+  "+63":  "en",  // Philippines → English
+  "+94":  "en",  // Sri Lanka → English
+  "+977": "en",  // Nepal → English
+};
+const getLangFromCountryCode = (code) => {
+  const lang = COUNTRY_CODE_TO_LANG[code];
+  return (lang && T[lang]) ? lang : "en";
+};
+
 // ─── Country Codes ────────────────────────────────────────────────────────
 const COUNTRY_CODES = [
   { code: "+1",   flag: "🇺🇸", name: "USA / Canada" },
@@ -2478,7 +2539,7 @@ function PhoneAuth({ onBack, onVerified }) {
 
   const verifyOTP = async (entered) => {
     if (DEMO_MODE) {
-      if (entered === demoCode) { onVerified({ type: "phone", contact: full }); }
+      if (entered === demoCode) { onVerified({ type: "phone", contact: full, lang: getLangFromCountryCode(country.code) }); }
       else { throw new Error(AUTH_T.wrongCode); }
       return;
     }
@@ -2572,7 +2633,7 @@ function EmailAuth({ onBack, onVerified }) {
   };
 
   const verifyOTP = async (entered) => {
-    if (entered === demoCode) { onVerified({ type: "email", contact: email }); }
+    if (entered === demoCode) { onVerified({ type: "email", contact: email, lang: "en" }); }
     else { throw new Error(AUTH_T.wrongCode); }
   };
 
@@ -2676,19 +2737,22 @@ function AuthScreen({ onVerified, onSkip }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────
 export default function PostApp() {
-  const [lang, setLang] = useState(() => {
-    const bl = navigator.language?.slice(0, 2);
-    return T[bl] ? bl : "en";
-  });
+  const [lang, setLang] = useState("en");
+  const [countryLang, setCountryLang] = useState(null); // user's detected country language
   const t = makeLangProxy(T[lang] || T.en);
   const dir = LANGS[lang]?.dir || "ltr";
+
+  // Toggle between English and country language
+  const toggleLang = () => {
+    if (!countryLang || countryLang === "en") return;
+    setLang(l => l === "en" ? countryLang : "en");
+  };
 
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState(SAMPLE_POSTS);
   const [tab, setTab] = useState("home");
   const [showCompose, setShowCompose] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showLangPicker, setShowLangPicker] = useState(false);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState(null);
   const [friends, setFriends] = useState([]);
@@ -2749,23 +2813,19 @@ export default function PostApp() {
     { id: "profile", icon: <Ic.Profile active={tab === "profile"} />, label: t.profile, color: COLORS.blue },
   ];
 
-  const langBtn = (
-    <div style={{ position: "fixed", top: 12, right: 16, zIndex: 100 }}>
-      <button onClick={() => setShowLangPicker(true)} style={{ background: "#111", border: `2px solid ${COLORS.green}`, cursor: "pointer", padding: "6px 8px", display: "flex", alignItems: "center", gap: 5 }}>
-        <Ic.Globe color={COLORS.green} />
-        <span style={{ fontSize: 10, color: COLORS.green, fontWeight: 700 }}>{LANGS[lang]?.flag} {lang.toUpperCase()}</span>
-      </button>
-    </div>
-  );
-
   if (!user) {
     if (!authDone) return (
       <LangCtx.Provider value={t}>
         <div dir={dir}>
-          {langBtn}
-          {showLangPicker && <LangPicker current={lang} onSelect={setLang} onClose={() => setShowLangPicker(false)} />}
           <AuthScreen
-            onVerified={info => { setAuthInfo(info); setAuthDone(true); }}
+            onVerified={info => {
+              setAuthInfo(info);
+              setAuthDone(true);
+              if (info.lang && info.lang !== "en") {
+                setCountryLang(info.lang);
+                setLang(info.lang); // auto-set country language
+              }
+            }}
             onSkip={() => setAuthDone(true)}
           />
         </div>
@@ -2774,8 +2834,6 @@ export default function PostApp() {
     return (
       <LangCtx.Provider value={t}>
         <div dir={dir}>
-          {langBtn}
-          {showLangPicker && <LangPicker current={lang} onSelect={setLang} onClose={() => setShowLangPicker(false)} />}
           <ProfileSetup onDone={setUser} authInfo={authInfo} />
         </div>
       </LangCtx.Provider>
@@ -2793,10 +2851,15 @@ export default function PostApp() {
             <span style={{ color: COLORS.yellow }}>P</span><span style={{ color: COLORS.red }}>O</span><span style={{ color: COLORS.blue }}>S</span><span style={{ color: COLORS.green }}>T</span>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={() => setShowLangPicker(true)} style={{ background: "transparent", border: `1px solid #333`, cursor: "pointer", padding: "4px 7px", display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 13 }}>{LANGS[lang]?.flag}</span>
-              <Ic.Globe color={COLORS.muted} />
-            </button>
+            {countryLang && countryLang !== "en" && (
+              <button onClick={toggleLang} title={lang === "en" ? `Switch to ${LANGS[countryLang]?.name}` : "Switch to English"}
+                style={{ background: "transparent", border: `1px solid #333`, cursor: "pointer", padding: "4px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 12 }}>{LANGS[lang]?.flag}</span>
+                <span style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, letterSpacing: 0.5 }}>
+                  {lang === "en" ? "EN" : lang.toUpperCase()}
+                </span>
+              </button>
+            )}
             {notifCount > 0 && (
               <button onClick={() => setTab("friends")} style={{ position: "relative", background: "transparent", border: "none", cursor: "pointer", padding: 4 }}>
                 <Ic.Bell color={COLORS.yellow} filled />
@@ -2921,7 +2984,6 @@ export default function PostApp() {
 
         {showCompose && <ComposeModal user={user} onClose={() => setShowCompose(false)} onPost={handlePost} />}
         {showEditProfile && <EditProfileModal user={user} onClose={() => setShowEditProfile(false)} onSave={handleSaveProfile} />}
-        {showLangPicker && <LangPicker current={lang} onSelect={setLang} onClose={() => setShowLangPicker(false)} />}
       </div>
     </LangCtx.Provider>
   );
