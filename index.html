@@ -1149,21 +1149,84 @@ function ComposeModal({ token, user, onClose, onPost, showToast }) {
 
 function DiscoverTab({ token, user, showToast }) {
   const [users,setUsers]=useState([]); const [q,setQ]=useState(""); const [loading,setLoading]=useState(true);
-  useEffect(()=>{ api(`/users${q?`?q=${q}`:""}`, "GET",null,token).then(d=>setUsers(d.users||d)).catch(()=>{}).finally(()=>setLoading(false)); },[q]);
-  const sendRequest=async(uid)=>{ try{await api("/friends/request","POST",{target_user_id:uid},token);showToast("Request sent! 🤝",COLORS.green);}catch(e){showToast(e.message,COLORS.red);} };
+  const [requestedIds,setRequestedIds]=useState(new Set());
+  const [friendIds,setFriendIds]=useState(new Set());
+  const [followingIds,setFollowingIds]=useState(new Set());
+  const [actionLoading,setActionLoading]=useState({});
+
+  // Load existing friend/following state on mount
+  useEffect(()=>{
+    api("/friends","GET",null,token).then(d=>{
+      const fids=new Set((d.friends||[]).map(f=>f.id));
+      const rids=new Set([...(d.pending_outgoing||[]).map(r=>r.to_id)]);
+      setFriendIds(fids);
+      setRequestedIds(rids);
+    }).catch(()=>{});
+    api("/auth/me","GET",null,token).then(me=>{
+      setFollowingIds(new Set(me.following||[]));
+    }).catch(()=>{});
+  },[]);
+
+  useEffect(()=>{ setLoading(true); api(`/users${q?`?q=${encodeURIComponent(q)}`:""}`, "GET",null,token).then(d=>setUsers(d.users||d)).catch(()=>{}).finally(()=>setLoading(false)); },[q]);
+
+  const sendRequest=async(uid)=>{
+    setActionLoading(a=>({...a,[uid+"_req"]:true}));
+    try{
+      await api("/friends/request","POST",{target_user_id:uid},token);
+      setRequestedIds(s=>new Set([...s,uid]));
+      showToast("Request sent! 🤝",COLORS.green);
+    }catch(e){showToast(e.message,COLORS.red);}
+    setActionLoading(a=>({...a,[uid+"_req"]:false}));
+  };
+
+  const toggleFollow=async(uid,isFollowing)=>{
+    setActionLoading(a=>({...a,[uid+"_follow"]:true}));
+    try{
+      await api(`/users/${uid}/${isFollowing?"unfollow":"follow"}","POST",null,token);
+      setFollowingIds(s=>{const n=new Set(s); isFollowing?n.delete(uid):n.add(uid); return n;});
+      showToast(isFollowing?"Unfollowed":"Following! 👍",isFollowing?COLORS.muted:COLORS.blue);
+    }catch(e){showToast(e.message,COLORS.red);}
+    setActionLoading(a=>({...a,[uid+"_follow"]:false}));
+  };
+
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Search people..." style={{...inputStyle,marginBottom:16}} />
       {loading&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Loading...</div>}
-      {users.map(u=>(
-        <div key={u.id} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:44,height:44,borderRadius:14,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
-            {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:u.avatar_letter}
+      {users.map(u=>{
+        const isFriend=friendIds.has(u.id);
+        const isRequested=requestedIds.has(u.id);
+        const isFollowing=followingIds.has(u.id);
+        return (
+          <div key={u.id} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:44,height:44,borderRadius:14,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
+              {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:u.avatar_letter}
+            </div>
+            <div style={{flex:1}}><div style={{fontWeight:700}}>{u.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{u.handle}{u.location?` • ${u.location}`:""}</div></div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              {/* Follow / Unfollow */}
+              <button
+                onClick={()=>toggleFollow(u.id,isFollowing)}
+                disabled={!!actionLoading[u.id+"_follow"]}
+                style={{background:isFollowing?"#e0e0e0":COLORS.blue,color:isFollowing?"#333":"#fff",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:actionLoading[u.id+"_follow"]?0.6:1}}>
+                {isFollowing?"Following":"Follow"}
+              </button>
+              {/* Connect / Requested / Friends */}
+              {isFriend
+                ? <button disabled style={{background:"#e8f5e9",color:COLORS.green,border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,fontSize:12}}>Friends ✓</button>
+                : isRequested
+                  ? <button disabled style={{background:"#f5f5f5",color:COLORS.muted,border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,fontSize:12}}>Requested</button>
+                  : <button
+                      onClick={()=>sendRequest(u.id)}
+                      disabled={!!actionLoading[u.id+"_req"]}
+                      style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:actionLoading[u.id+"_req"]?0.6:1}}>
+                      Connect
+                    </button>
+              }
+            </div>
           </div>
-          <div style={{flex:1}}><div style={{fontWeight:700}}>{u.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{u.handle}{u.location?` • ${u.location}`:""}</div></div>
-          <button onClick={()=>sendRequest(u.id)} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 14px",fontWeight:700,cursor:"pointer",fontSize:13}}>Connect</button>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1178,13 +1241,21 @@ function FriendsTab({ token, user, showToast }) {
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
       {data.pending_incoming.length>0&&<>
         <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,fontSize:13,letterSpacing:2}}>REQUESTS 📬</div>
-        {data.pending_incoming.map(r=>(
+        {data.pending_incoming.map(r=>{
+          const fu=r.from_user||{};
+          return (
           <div key={r.id} style={{background:COLORS.card,border:"1px solid #ddd",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
-            <div style={{flex:1,fontWeight:600,fontSize:14}}>{r.from_id}</div>
+            <div style={{width:40,height:40,borderRadius:12,background:normalizeColor(fu.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,flexShrink:0,overflow:"hidden"}}>
+              {fu.avatar_photo?<img src={fu.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:(fu.avatar_letter||"?")}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:14}}>{fu.name||r.from_id}</div>
+              <div style={{color:COLORS.muted,fontSize:12}}>{fu.handle||""}</div>
+            </div>
             <button onClick={()=>accept(r.from_id)} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12,marginRight:6}}>Accept</button>
             <button onClick={()=>decline(r.from_id)} style={{background:"#e0e0e0",color:"#111111",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Decline</button>
           </div>
-        ))}
+        );})}
       </>}
       <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,marginTop:16,fontSize:13,letterSpacing:2}}>FRIENDS 🤝</div>
       {data.friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:30}}>No friends yet. Start discovering! 🔍</div>}
