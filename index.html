@@ -154,7 +154,13 @@ async function api(path, method = "GET", body = null, token = null) {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API}${path}`, { method, headers, body: body ? JSON.stringify(body) : null });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Something went wrong");
+  if (!res.ok) {
+    const err = new Error(typeof data.detail === "object" ? (data.detail.message || "Verification required") : (data.detail || "Something went wrong"));
+    if (res.status === 403 && typeof data.detail === "object" && data.detail.code === "SECONDARY_REQUIRED") {
+      err.secondaryRequired = data.detail.type;
+    }
+    throw err;
+  }
   return data;
 }
 
@@ -218,7 +224,7 @@ function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
     try {
       const phoneNum = phone.startsWith('+') ? phone : `+91${phone}`;
       const data = await api("/auth/phone-signup", "POST", { phone: phoneNum, name, username, password, dob });
-      onSuccess(data.token);
+      onSuccess(data.token, data.requires_email);
     } catch(e) { showToast(e.message, COLORS.red); }
     setLoading(false);
   };
@@ -338,7 +344,7 @@ function EmailSignupScreen({ onBack, onSuccess, showToast }) {
     setLoading(true);
     try {
       const data = await api("/auth/email-signup", "POST", { email, name, username, password, dob });
-      onSuccess(data.token);
+      onSuccess(data.token, data.requires_phone);
     } catch(e) { showToast(e.message, COLORS.red); }
     setLoading(false);
   };
@@ -485,7 +491,7 @@ function PostApp() {
   },[]);
 
   useEffect(()=>{
-    if(token){ api("/auth/me","GET",null,token).then(u=>{setUser(u);setScreen("app");}).catch(()=>{localStorage.removeItem("token");setToken(null);setScreen("login");}); }
+    if(token){ api("/auth/me","GET",null,token).then(u=>{setUser(u);setScreen("app");}).catch((e)=>{if(e&&e.secondaryRequired){setNewToken(token);setScreen(e.secondaryRequired==="phone"?"add-phone":"add-email");}else{localStorage.removeItem("token");setToken(null);setScreen("login");}); }
   },[token]);
 
   if(screen==="splash") return <SplashScreen />;
@@ -500,10 +506,13 @@ function PostApp() {
         d=await api("/auth/phone-login","POST",{phone:phoneNum,password});
       }
       localStorage.setItem("token",d.token); setToken(d.token);
-    }catch(e){showToast(e.message,COLORS.red);}
+    }catch(e){
+      if(e.secondaryRequired){ showToast((e.secondaryRequired==="phone" ? "📱 Phone number" : "📧 Email") + " verify karna zaroori hai", COLORS.yellow); }
+      else { showToast(e.message,COLORS.red); }
+    }
   };
-  const handleEmailSuccess = (tok)=>{ setNewToken(tok); setScreen("account-created"); };
-  const handlePhoneSuccess = (tok)=>{ setNewToken(tok); setScreen("account-created"); };
+  const handleEmailSuccess = (tok, reqPhone)=>{ setNewToken(tok); setScreen(reqPhone ? "add-phone" : "account-created"); };
+  const handlePhoneSuccess = (tok, reqEmail)=>{ setNewToken(tok); setScreen(reqEmail ? "add-email" : "account-created"); };
   const handleAccountCreatedDone = ()=>{ setScreen("profile-setup"); };
   const handleProfileSetupDone = ()=>{ localStorage.setItem("token",newToken); setToken(newToken); };
   const handleLogout = ()=>{ localStorage.removeItem("token"); setToken(null); setUser(null); setScreen("login"); };
@@ -514,6 +523,8 @@ function PostApp() {
   if(screen==="profile-setup") return <ProfileSetupScreen token={newToken} onDone={handleProfileSetupDone} showToast={showToast} />;
   if(screen==="phone-signup") return <PhoneSignupScreen onBack={()=>setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} />;
   if(screen==="phone-login") return <PhoneLoginScreen onBack={()=>setScreen("login")} onSuccess={(tok)=>{localStorage.setItem("token",tok);setToken(tok);}} showToast={showToast} />;
+  if(screen==="add-phone") return <AddPhoneScreen token={newToken} onSuccess={(tok)=>{ setNewToken(tok); setScreen("account-created"); }} showToast={showToast} />;
+  if(screen==="add-email") return <AddEmailScreen token={newToken} onSuccess={(tok)=>{ setNewToken(tok); setScreen("account-created"); }} showToast={showToast} />;
   if(screen==="forgot-password") return <ForgotPasswordScreen onBack={()=>setScreen("login")} showToast={showToast} />;
   if(!user) return <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text)",fontSize:24}}>Loading...</div>;
 
@@ -663,6 +674,106 @@ function ForgotPasswordScreen({ onBack, showToast }) {
         {step !== "done" && (
           <div style={{textAlign:"center",marginTop:16}}>
             <span onClick={onBack} style={{color:"var(--muted)",cursor:"pointer",fontSize:13}}>← Back to Login</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddPhoneScreen({ token, onSuccess, showToast }) {
+  const [phone, setPhone] = useState("");
+  const [step, setStep] = useState("input");
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const sendOtp = async () => {
+    const ph = phone.startsWith("+") ? phone : "+91" + phone;
+    setLoading(true);
+    try {
+      const data = await api("/auth/add-phone-init", "POST", { phone: ph }, token);
+      if (data.demo_otp) showToast("Demo OTP: " + data.demo_otp, COLORS.green);
+      setStep("otp");
+    } catch(e) { showToast(e.message || "Failed to send OTP", COLORS.red); }
+    setLoading(false);
+  };
+  const verifyOtp = async () => {
+    const ph = phone.startsWith("+") ? phone : "+91" + phone;
+    setLoading(true);
+    try {
+      const data = await api("/auth/add-phone-verify", "POST", { phone: ph, otp }, token);
+      showToast("Phone verified! ✅", COLORS.green);
+      onSuccess(data.token || token);
+    } catch(e) { showToast(e.message || "Incorrect OTP", COLORS.red); }
+    setLoading(false);
+  };
+  return (
+    <div style={{ minHeight:"100vh", background:"var(--bg)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"var(--card-bg)", border:"2px solid " + COLORS.yellow, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
+        <div style={{ textAlign:"center", marginBottom:24 }}>
+          <div style={{ fontSize:48, marginBottom:8 }}>📱</div>
+          <h2 style={{ color:"var(--text)", fontWeight:900, fontSize:22, marginBottom:8 }}>Phone Number Required</h2>
+          <p style={{ color:"var(--muted)", fontSize:14, lineHeight:1.6 }}>Fake accounts रोकने के लिए आपको अपना <b>phone number verify</b> करना होगा।<br/>यह सिर्फ एक बार का process है।</p>
+        </div>
+        {step === "input" ? (
+          <div>
+            <input style={{ ...inputStyle, marginBottom:14 }} placeholder="Phone (e.g. +91XXXXXXXXXX)" value={phone} onChange={e=>setPhone(e.target.value)} type="tel" />
+            <button style={{ ...btnStyle, opacity: loading ? 0.7 : 1 }} onClick={sendOtp} disabled={loading}>{loading ? "Sending..." : "Send OTP →"}</button>
+          </div>
+        ) : (
+          <div>
+            <p style={{ color:"var(--muted)", fontSize:13, marginBottom:12 }}>OTP sent to <b>{phone.startsWith("+") ? phone : "+91" + phone}</b></p>
+            <input style={{ ...inputStyle, marginBottom:14, letterSpacing:6, textAlign:"center", fontSize:20, fontWeight:700 }} placeholder="Enter 4-digit OTP" value={otp} onChange={e=>setOtp(e.target.value)} maxLength={4} type="tel" />
+            <button style={{ ...btnStyle, opacity: loading ? 0.7 : 1 }} onClick={verifyOtp} disabled={loading}>{loading ? "Verifying..." : "Verify Phone ✓"}</button>
+            <button style={{ width:"100%", marginTop:10, padding:"10px", background:"transparent", color:"var(--muted)", border:"none", cursor:"pointer", fontSize:13 }} onClick={()=>setStep("input")}>← Change number</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddEmailScreen({ token, onSuccess, showToast }) {
+  const [email, setEmail] = useState("");
+  const [step, setStep] = useState("input");
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const sendOtp = async () => {
+    setLoading(true);
+    try {
+      const data = await api("/auth/add-email-init", "POST", { email }, token);
+      if (data.demo_otp) showToast("Demo OTP: " + data.demo_otp, COLORS.green);
+      setStep("otp");
+    } catch(e) { showToast(e.message || "Failed to send OTP", COLORS.red); }
+    setLoading(false);
+  };
+  const verifyOtp = async () => {
+    setLoading(true);
+    try {
+      const data = await api("/auth/add-email-verify", "POST", { email, otp }, token);
+      showToast("Email verified! ✅", COLORS.green);
+      onSuccess(data.token || token);
+    } catch(e) { showToast(e.message || "Incorrect OTP", COLORS.red); }
+    setLoading(false);
+  };
+  return (
+    <div style={{ minHeight:"100vh", background:"var(--bg)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"var(--card-bg)", border:"2px solid " + COLORS.blue, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
+        <div style={{ textAlign:"center", marginBottom:24 }}>
+          <div style={{ fontSize:48, marginBottom:8 }}>📧</div>
+          <h2 style={{ color:"var(--text)", fontWeight:900, fontSize:22, marginBottom:8 }}>Email Required</h2>
+          <p style={{ color:"var(--muted)", fontSize:14, lineHeight:1.6 }}>Fake accounts रोकने के लिए आपको अपना <b>email verify</b> करना होगा।<br/>यह सिर्फ एक बार का process है।</p>
+        </div>
+        {step === "input" ? (
+          <div>
+            <input style={{ ...inputStyle, marginBottom:14 }} placeholder="Your email address" value={email} onChange={e=>setEmail(e.target.value)} type="email" />
+            <button style={{ ...btnStyle, background: COLORS.blue, opacity: loading ? 0.7 : 1 }} onClick={sendOtp} disabled={loading}>{loading ? "Sending..." : "Send OTP →"}</button>
+          </div>
+        ) : (
+          <div>
+            <p style={{ color:"var(--muted)", fontSize:13, marginBottom:12 }}>OTP sent to <b>{email}</b></p>
+            <input style={{ ...inputStyle, marginBottom:14, letterSpacing:6, textAlign:"center", fontSize:20, fontWeight:700 }} placeholder="Enter 4-digit OTP" value={otp} onChange={e=>setOtp(e.target.value)} maxLength={4} type="tel" />
+            <button style={{ ...btnStyle, background: COLORS.blue, opacity: loading ? 0.7 : 1 }} onClick={verifyOtp} disabled={loading}>{loading ? "Verifying..." : "Verify Email ✓"}</button>
+            <button style={{ width:"100%", marginTop:10, padding:"10px", background:"transparent", color:"var(--muted)", border:"none", cursor:"pointer", fontSize:13 }} onClick={()=>setStep("input")}>← Change email</button>
           </div>
         )}
       </div>
