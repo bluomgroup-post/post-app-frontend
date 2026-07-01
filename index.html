@@ -937,8 +937,8 @@ function ProfileTab({ token, user, setUser, showToast }) {
                 </label>
                 <label style={{ display:"flex", alignItems:"center", gap:4, background:COLORS.blue, border:"none", borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:11, fontWeight:700, color:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.12)" }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                  Live (5-7s)
-                  <input type="file" accept="video/*" style={{ display:"none" }} onChange={e => { handleVideo(e, setProfileVideo, 7); setAvatarPhoto(null); }} />
+                  Live (10s)
+                  <input type="file" accept="video/*" style={{ display:"none" }} onChange={e => { handleVideo(e, setProfileVideo, 10); setAvatarPhoto(null); }} />
                 </label>
               </div>
             )}
