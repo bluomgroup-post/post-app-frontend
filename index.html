@@ -808,30 +808,152 @@ function MessagesTab({ token, user, showToast }) {
 }
 
 function ProfileTab({ token, user, setUser, showToast }) {
-  const [editing,setEditing]=useState(false); const [name,setName]=useState(user.name||""); const [location,setLocation]=useState(user.location||""); const [about,setAbout]=useState(user.about||""); const [avatarBg,setAvatarBg]=useState(user.avatar_bg||COLORS.yellow);
-  const save=async()=>{ try{const u=await api("/profile","PATCH",{name,location,about,avatar_bg:avatarBg},token);setUser(u);setEditing(false);showToast("Profile updated! ✓",COLORS.green);}catch(e){showToast(e.message,COLORS.red);} };
+  const [editing, setEditing] = useState(false);
+  const [stats, setStats] = useState({ posts: 0, followers: 0, following: 0 });
+  const [name, setName] = useState(user.name || "");
+  const [username, setUsername] = useState((user.username || user.handle || "").replace("@",""));
+  const [about, setAbout] = useState(user.about || "");
+  const [location, setLocation] = useState(user.location || "");
+  const [website, setWebsite] = useState(user.website || "");
+  const [avatarBg, setAvatarBg] = useState(user.avatar_bg || COLORS.yellow);
+  const [avatarPhoto, setAvatarPhoto] = useState(user.avatar_photo || null);
+  const [coverPhoto, setCoverPhoto] = useState(user.cover_photo || null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api(`/users/${user.id}`, "GET", null, token)
+      .then(d => { if (d.stats) setStats(d.stats); })
+      .catch(() => {});
+    api("/profile/online", "PATCH", { is_online: true }, token).catch(() => {});
+  }, []);
+
+  const handlePhoto = (e, setter) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { showToast("Max 5MB allowed", COLORS.red); return; }
+    const reader = new FileReader();
+    reader.onload = ev => setter(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const u = await api("/profile", "PATCH", {
+        name, location, about, website,
+        avatar_bg: avatarBg,
+        avatar_photo: avatarPhoto,
+        cover_photo: coverPhoto,
+        username: username.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+        handle: `@${username.toLowerCase().replace(/[^a-z0-9_]/g, "")}`
+      }, token);
+      setUser(u);
+      setEditing(false);
+      showToast("Profile updated! ✓", COLORS.green);
+    } catch(e) { showToast(e.message, COLORS.red); }
+    setSaving(false);
+  };
+
+  const fmtNum = n => n >= 1000 ? (n/1000).toFixed(1)+"K" : n;
+
   return (
-    <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
-      <div style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:20,padding:24,textAlign:"center"}}>
-        <div style={{width:80,height:80,borderRadius:24,background:normalizeColor(user.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:36,margin:"0 auto 16px",overflow:"hidden"}}>
-          {user.avatar_photo?<img src={user.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:user.avatar_letter}
-        </div>
-        <div style={{fontWeight:900,fontSize:22}}>{user.name}</div>
-        <div style={{color:COLORS.muted,fontSize:14,marginTop:4}}>{user.handle}</div>
-        {user.location&&<div style={{color:COLORS.muted,fontSize:13,marginTop:4}}>📍 {user.location}</div>}
-        {user.about&&<div style={{color:"#ccc",fontSize:14,marginTop:10,lineHeight:1.5}}>{user.about}</div>}
-        {!editing?(
-          <button onClick={()=>setEditing(true)} style={{...btnStyle,marginTop:20,maxWidth:200,margin:"20px auto 0"}}>Edit Profile ✏️</button>
-        ):(
-          <div style={{marginTop:20,textAlign:"left"}}>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Name" style={{...inputStyle,marginBottom:10}} />
-            <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="Location" style={{...inputStyle,marginBottom:10}} />
-            <textarea value={about} onChange={e=>setAbout(e.target.value)} placeholder="About yourself..." style={{...inputStyle,height:80,resize:"none",marginBottom:10}} />
-            <div style={{display:"flex",gap:8,marginBottom:14}}>
-              {ACCENTS.map(c=><button key={c} onClick={()=>setAvatarBg(c)} style={{width:36,height:36,borderRadius:10,background:c,border:avatarBg===c?"3px solid white":"3px solid transparent",cursor:"pointer"}} />)}
+    <div style={{ maxWidth: 600, margin: "0 auto", paddingBottom: 20 }}>
+      {/* Cover Photo */}
+      <div style={{ height: 150, background: coverPhoto ? "transparent" : `linear-gradient(135deg, ${normalizeColor(avatarBg)}44 0%, #f5f5f5 100%)`, position: "relative", overflow: "hidden" }}>
+        {coverPhoto && <img src={coverPhoto} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+        {editing && (
+          <label style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.38)", cursor: "pointer", gap: 6 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>Change Cover</span>
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handlePhoto(e, setCoverPhoto)} />
+          </label>
+        )}
+      </div>
+
+      <div style={{ padding: "0 16px" }}>
+        {/* Avatar row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: -44, marginBottom: 12 }}>
+          <div style={{ position: "relative" }}>
+            <div style={{ width: 88, height: 88, borderRadius: 22, background: normalizeColor(avatarBg) || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 36, overflow: "hidden", border: "3px solid #fff", boxShadow: "0 2px 16px rgba(0,0,0,0.13)" }}>
+              {avatarPhoto ? <img src={avatarPhoto} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : user.avatar_letter}
             </div>
-            <button onClick={save} style={btnStyle}>Save ✓</button>
-            <button onClick={()=>setEditing(false)} style={{...btnStyle,background:"#e0e0e0",color:"#111111",marginTop:8}}>Cancel</button>
+            {/* Online dot */}
+            <div style={{ position: "absolute", bottom: 4, right: 4, width: 14, height: 14, borderRadius: "50%", background: user.is_online ? "#00C853" : "#bbb", border: "2px solid #fff" }} title={user.is_online ? "Online" : `Last seen: ${user.last_seen ? new Date(user.last_seen).toLocaleString() : "a while ago"}`} />
+            {editing && (
+              <label style={{ position: "absolute", inset: 0, borderRadius: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.42)", cursor: "pointer" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handlePhoto(e, setAvatarPhoto)} />
+              </label>
+            )}
+          </div>
+          {!editing && (
+            <button onClick={() => setEditing(true)} style={{ background: "#fff", border: "1.5px solid #ddd", borderRadius: 10, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", color: "#111" }}>Edit Profile</button>
+          )}
+        </div>
+
+        {!editing ? (
+          <>
+            <div style={{ fontWeight: 900, fontSize: 20 }}>{user.name}</div>
+            <div style={{ color: COLORS.muted, fontSize: 14, marginTop: 2 }}>@{user.username || user.handle?.replace("@","")}</div>
+            {user.about && <div style={{ fontSize: 14, marginTop: 8, lineHeight: 1.55, color: "#333" }}>{user.about}</div>}
+            <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
+              {user.location && <span style={{ color: COLORS.muted, fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{user.location}</span>}
+              {user.website && <a href={user.website.startsWith("http")?user.website:`https://${user.website}`} target="_blank" style={{ color: COLORS.blue, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>{user.website.replace(/https?:///,"")}</a>}
+            </div>
+
+            {/* Stats */}
+            <div style={{ display: "flex", borderTop: "1px solid #f0f0f0", borderBottom: "1px solid #f0f0f0", margin: "14px 0", padding: "12px 0" }}>
+              {[["Posts", fmtNum(stats.posts)], ["Followers", fmtNum(stats.followers)], ["Following", fmtNum(stats.following)]].map(([label, val]) => (
+                <div key={label} style={{ flex: 1, textAlign: "center" }}>
+                  <div style={{ fontWeight: 900, fontSize: 22 }}>{val}</div>
+                  <div style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Online status text */}
+            <div style={{ fontSize: 12, color: user.is_online ? "#00C853" : COLORS.muted, display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: user.is_online ? "#00C853" : "#bbb" }} />
+              {user.is_online ? "Online now" : `Last seen: ${user.last_seen ? new Date(user.last_seen).toLocaleString() : "a while ago"}`}
+            </div>
+          </>
+        ) : (
+          <div style={{ marginTop: 8 }}>
+            {[
+              ["NAME", name, setName, "Your name", "text"],
+              ["LOCATION", location, setLocation, "City, Country", "text"],
+              ["WEBSITE", website, setWebsite, "https://yoursite.com", "url"]
+            ].map(([label, val, setter, ph, type]) => (
+              <div key={label} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 5 }}>{label}</div>
+                <input value={val} onChange={e => setter(e.target.value)} placeholder={ph} type={type} style={inputStyle} />
+              </div>
+            ))}
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 5 }}>USERNAME</div>
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: COLORS.muted, fontSize: 15 }}>@</span>
+                <input value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,""))} placeholder="username" style={{ ...inputStyle, paddingLeft: 30 }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 5 }}>BIO</div>
+              <textarea value={about} onChange={e => setAbout(e.target.value)} placeholder="Write something about yourself..." style={{ ...inputStyle, height: 80, resize: "none" }} />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>AVATAR COLOUR</div>
+              <div style={{ display: "flex", gap: 12 }}>
+                {ACCENTS.map(c => (
+                  <button key={c} onClick={() => setAvatarBg(c)} style={{ width: 38, height: 38, borderRadius: "50%", background: c, border: avatarBg === c ? "3px solid #111" : "3px solid transparent", cursor: "pointer", transform: avatarBg === c ? "scale(1.2)" : "scale(1)", transition: "all 0.2s" }} />
+                ))}
+              </div>
+            </div>
+
+            <button onClick={save} disabled={saving} style={{ ...btnStyle, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving..." : "Save Changes ✓"}</button>
+            <button onClick={() => setEditing(false)} style={{ ...btnStyle, background: "#e0e0e0", color: "#111", marginTop: 8 }}>Cancel</button>
           </div>
         )}
       </div>
