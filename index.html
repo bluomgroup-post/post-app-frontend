@@ -824,7 +824,6 @@ function ProfileTab({ token, user, setUser, showToast }) {
     api(`/users/${user.id}`, "GET", null, token)
       .then(d => { if (d.stats) setStats(d.stats); })
       .catch(() => {});
-    api("/profile/online", "PATCH", { is_online: true }, token).catch(() => {});
   }, []);
 
   const handlePhoto = (e, setter) => {
@@ -877,8 +876,6 @@ function ProfileTab({ token, user, setUser, showToast }) {
             <div style={{ width: 88, height: 88, borderRadius: 22, background: normalizeColor(avatarBg) || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 36, overflow: "hidden", border: "3px solid #fff", boxShadow: "0 2px 16px rgba(0,0,0,0.13)" }}>
               {avatarPhoto ? <img src={avatarPhoto} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : user.avatar_letter}
             </div>
-            {/* Online dot */}
-            <div style={{ position: "absolute", bottom: 4, right: 4, width: 14, height: 14, borderRadius: "50%", background: user.is_online ? "#00C853" : "#bbb", border: "2px solid #fff" }} title={user.is_online ? "Online" : `Last seen: ${user.last_seen ? new Date(user.last_seen).toLocaleString() : "a while ago"}`} />
             {editing && (
               <label style={{ position: "absolute", inset: 0, borderRadius: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.42)", cursor: "pointer" }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -911,10 +908,6 @@ function ProfileTab({ token, user, setUser, showToast }) {
               ))}
             </div>
 
-            {/* Online status text */}
-            <div style={{ fontSize: 12, color: user.is_online ? "#00C853" : COLORS.muted, display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: user.is_online ? "#00C853" : "#bbb" }} />
-              {user.is_online ? "Online now" : `Last seen: ${user.last_seen ? new Date(user.last_seen).toLocaleString() : "a while ago"}`}
             </div>
           </>
         ) : (
