@@ -482,11 +482,31 @@ function PostApp() {
   const [tab, setTab] = useState("home");
   const [toast, setToast] = useState(null);
   const [newToken, setNewToken] = useState(null);
+  const [refBy, setRefBy] = useState(null);
 
   const showToast = (msg, color=COLORS.yellow) => { setToast({msg,color}); setTimeout(()=>setToast(null),3000); };
 
   useEffect(()=>{
-    const t = setTimeout(()=>{ setScreen(s => s==="splash" ? "login" : s); }, 2000);
+    // Read ?ref= invite param from URL
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      setRefBy(decodeURIComponent(ref));
+      // Clean URL so it doesn't persist on reload
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    const t = setTimeout(()=>{
+      setScreen(s => {
+        if (s !== "splash") return s;
+        // If invited and not logged in → go straight to signup
+        if (ref && !localStorage.getItem("token")) return "signup";
+        return "login";
+      });
+      if (ref && !localStorage.getItem("token")) {
+        setTimeout(()=>setToast({ msg: `👋 ${decodeURIComponent(ref)} ne aapko invite kiya hai! Account banayein.`, color: COLORS.green }), 100);
+        setTimeout(()=>setToast(null), 4000);
+      }
+    }, 2000);
     return ()=>clearTimeout(t);
   },[]);
 
@@ -518,10 +538,10 @@ function PostApp() {
   const handleLogout = ()=>{ localStorage.removeItem("token"); setToken(null); setUser(null); setScreen("login"); };
 
   if(screen==="login") return <LoginScreen onLogin={handleLogin} onGoSignup={()=>setScreen("signup")} onGoPhoneSignup={()=>setScreen("phone-signup")} onGoForgot={()=>setScreen("forgot-password")} toast={toast} />;
-  if(screen==="signup") return <EmailSignupScreen onBack={()=>setScreen("login")} onSuccess={handleEmailSuccess} showToast={showToast} />;
+  if(screen==="signup") return <EmailSignupScreen onBack={()=>setScreen("login")} onSuccess={handleEmailSuccess} showToast={showToast} refBy={refBy} />;
   if(screen==="account-created") return <AccountCreatedScreen onContinue={handleAccountCreatedDone} />;
   if(screen==="profile-setup") return <ProfileSetupScreen token={newToken} onDone={handleProfileSetupDone} showToast={showToast} />;
-  if(screen==="phone-signup") return <PhoneSignupScreen onBack={()=>setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} />;
+  if(screen==="phone-signup") return <PhoneSignupScreen onBack={()=>setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} refBy={refBy} />;
   if(screen==="phone-login") return <PhoneLoginScreen onBack={()=>setScreen("login")} onSuccess={(tok)=>{localStorage.setItem("token",tok);setToken(tok);}} showToast={showToast} />;
   if(screen==="add-phone") return <AddPhoneScreen token={newToken} onSuccess={(tok)=>{ setNewToken(tok); setScreen("account-created"); }} showToast={showToast} />;
   if(screen==="add-email") return <AddEmailScreen token={newToken} onSuccess={(tok)=>{ setNewToken(tok); setScreen("account-created"); }} showToast={showToast} />;
