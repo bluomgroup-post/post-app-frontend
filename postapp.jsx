@@ -138,7 +138,21 @@ const T = {
     africa: "Africa 🌍",
     oceania: "Oceania 🌊",
     langPicker: "Choose Language",
-    username_opt: "@username (optional)"
+    username_opt: "@username (optional)",
+    website: "🌐 Website",
+    websitePh: "https://yourwebsite.com",
+    followers: "FOLLOWERS",
+    following: "FOLLOWING",
+    onlineNow: "● ONLINE",
+    lastSeen: "Last seen",
+    coverPhoto: "Cover Photo",
+    coverVideo: "Cover Video (5-7 sec)",
+    profileVideo: "Profile Video (5-7 sec)",
+    removeCover: "Remove Cover ✕",
+    removeVid: "Remove Video ✕",
+    addCoverPhoto: "+ Add Cover Photo",
+    addCoverVideo: "+ Add Cover Video",
+    addProfileVideo: "+ Add Profile Video",
   },
   hi: {
     tagline: "दुनिया से जुड़ो। पोस्ट करो।",
@@ -1390,6 +1404,8 @@ const SAMPLE_POSTS = [
 ];
 
 const LangCtx = createContext(T.en);
+// Proxy so missing keys always fall back to English
+const makeLangProxy = (obj) => new Proxy(obj, { get: (t, k) => (k in t ? t[k] : T.en[k]) });
 
 // ─── Country Codes ────────────────────────────────────────────────────────
 const COUNTRY_CODES = [
@@ -1839,29 +1855,58 @@ function ComposeModal({ user, onClose, onPost }) {
 }
 
 // ─── Edit Profile Modal ───────────────────────────────────────────────────
+function MediaUploadBtn({ label, value, onFile, onRemove, accept, removeLabel, addLabel, color = COLORS.yellow }) {
+  const ref = useRef();
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 4, fontWeight: 600 }}>{label}</div>
+      {value ? (
+        <div style={{ position: "relative", background: "#0a0a0a", border: `1.5px solid ${color}`, padding: 6, display: "flex", alignItems: "center", gap: 8 }}>
+          {accept === "video/*"
+            ? <video src={value} style={{ width: 60, height: 40, objectFit: "cover" }} muted />
+            : <img src={value} alt="" style={{ width: 60, height: 40, objectFit: "cover" }} />}
+          <span style={{ fontSize: 11, color: "#aaa", flex: 1 }}>✓ Uploaded</span>
+          <button onClick={onRemove} style={{ fontSize: 9, color: COLORS.red, background: "transparent", border: `1px solid ${COLORS.red}`, cursor: "pointer", padding: "2px 6px" }}>{removeLabel}</button>
+        </div>
+      ) : (
+        <button onClick={() => ref.current.click()} style={{ width: "100%", padding: "8px 0", background: "#0a0a0a", border: `1.5px dashed #333`, color: "#555", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: 0.5 }}>
+          {addLabel}
+        </button>
+      )}
+      <input ref={ref} type="file" accept={accept} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => onFile(ev.target.result); r.readAsDataURL(f); e.target.value = ""; }} style={{ display: "none" }} />
+    </div>
+  );
+}
+
 function EditProfileModal({ user, onClose, onSave }) {
   const t = useLang();
   const [name, setName] = useState(user.name);
   const [handle, setHandle] = useState(user.handle);
   const [location, setLocation] = useState(user.location || "");
   const [about, setAbout] = useState(user.about || "");
+  const [website, setWebsite] = useState(user.website || "");
   const [bg, setBg] = useState(user.avatar.bg || COLORS.yellow);
   const [photo, setPhoto] = useState(user.avatar.photo || null);
+  const [profileVideo, setProfileVideo] = useState(user.profileVideo || null);
+  const [coverPhoto, setCoverPhoto] = useState(user.coverPhoto || null);
+  const [coverVideo, setCoverVideo] = useState(user.coverVideo || null);
   const fileRef = useRef();
   const onFile = e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => setPhoto(ev.target.result); r.readAsDataURL(f); };
   const save = () => {
     if (!name.trim()) return;
     const h = handle.trim() ? (handle.startsWith("@") ? handle : `@${handle}`) : `@${name.toLowerCase().replace(/\s+/g, "_")}`;
-    onSave({ ...user, name: name.trim(), handle: h, location: location.trim(), about: about.trim(), avatar: { ...user.avatar, photo, bg, letter: name[0]?.toUpperCase() || "?" } });
+    onSave({ ...user, name: name.trim(), handle: h, location: location.trim(), about: about.trim(), website: website.trim(), profileVideo, coverPhoto, coverVideo, avatar: { ...user.avatar, photo, bg, letter: name[0]?.toUpperCase() || "?" } });
     onClose();
   };
   const prev = { photo, bg, letter: name[0]?.toUpperCase() || "?" };
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.92)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.92)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 16, overflowY: "auto" }}>
       <div style={{ background: "#111", border: `2px solid ${COLORS.blue}`, boxShadow: `6px 6px 0 ${COLORS.blue}`, width: "100%", maxWidth: 400, overflow: "hidden", margin: "auto" }}>
         <div style={{ height: 4, display: "flex" }}>{ACCENTS.map(c => <div key={c} style={{ flex: 1, background: c }} />)}</div>
         <div style={{ padding: 18 }}>
           <div style={{ fontWeight: 900, fontSize: 15, color: COLORS.blue, marginBottom: 16 }}>{t.profileEdit}</div>
+
+          {/* Profile Photo + Avatar Color */}
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
               <Avatar avatar={prev} size={66} border={3} borderColor={COLORS.blue} />
@@ -1876,18 +1921,38 @@ function EditProfileModal({ user, onClose, onSave }) {
               {photo && <button onClick={() => setPhoto(null)} style={{ marginTop: 7, fontSize: 10, color: COLORS.red, background: "transparent", border: `1px solid ${COLORS.red}`, cursor: "pointer", padding: "2px 7px" }}>{t.removePhoto}</button>}
             </div>
           </div>
+
+          {/* Profile Video (5-7 sec) */}
+          <MediaUploadBtn label={t.profileVideo} value={profileVideo} onFile={setProfileVideo} onRemove={() => setProfileVideo(null)} accept="video/*" removeLabel={t.removeVid} addLabel={t.addProfileVideo} color={COLORS.blue} />
+
+          {/* Cover Photo */}
+          <MediaUploadBtn label={t.coverPhoto} value={coverPhoto} onFile={setCoverPhoto} onRemove={() => setCoverPhoto(null)} accept="image/*" removeLabel={t.removeCover} addLabel={t.addCoverPhoto} color={COLORS.green} />
+
+          {/* Cover Video (5-7 sec) */}
+          <MediaUploadBtn label={t.coverVideo} value={coverVideo} onFile={setCoverVideo} onRemove={() => setCoverVideo(null)} accept="video/*" removeLabel={t.removeVid} addLabel={t.addCoverVideo} color={COLORS.green} />
+
+          {/* Text fields */}
           {[[t.nameStar, name, setName, t.yourName, 40], [t.handle, handle, setHandle, t.username, 30], [t.location, location, setLocation, t.cityCountry, 60]].map(([label, val, set, ph, mx]) => (
             <div key={label} style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 3, fontWeight: 600 }}>{label}</div>
               <input value={val} onChange={e => set(e.target.value)} placeholder={ph} maxLength={mx} style={{ width: "100%", padding: "8px 11px", background: "#0a0a0a", border: "1.5px solid #2a2a2a", color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
             </div>
           ))}
+
+          {/* Website */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 3, fontWeight: 600 }}>{t.website}</div>
+            <input value={website} onChange={e => setWebsite(e.target.value)} placeholder={t.websitePh} maxLength={100} style={{ width: "100%", padding: "8px 11px", background: "#0a0a0a", border: "1.5px solid #2a2a2a", color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+          </div>
+
+          {/* About */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 3, fontWeight: 600 }}>{t.about}</div>
             <textarea value={about} onChange={e => setAbout(e.target.value)} placeholder={t.aboutPlaceholder} maxLength={150}
               style={{ width: "100%", minHeight: 60, background: "#0a0a0a", border: "1.5px solid #2a2a2a", color: "#fff", fontSize: 13, padding: "8px 11px", resize: "none", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
             <div style={{ fontSize: 10, color: COLORS.muted, textAlign: "right" }}>{about.length}/150</div>
           </div>
+
           <div style={{ display: "flex", gap: 9 }}>
             <button onClick={onClose} style={{ flex: 1, padding: "9px 0", background: "transparent", border: "2px solid #2a2a2a", color: COLORS.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{t.cancel}</button>
             <button onClick={save} style={{ flex: 2, padding: "9px 0", background: COLORS.blue, border: "none", color: "#fff", fontWeight: 900, fontSize: 13, cursor: "pointer" }}>{t.save}</button>
@@ -2019,6 +2084,7 @@ function UserCard({ u, isFriend, sent, onConnect, onCancelRequest }) {
         <div style={{ position: "relative", flexShrink: 0 }}>
           <Avatar avatar={u.avatar} size={44} border={2} borderColor={u.avatar.bg} />
           <span style={{ position: "absolute", bottom: -4, right: -4, fontSize: 12 }}>{u.flag}</span>
+          {u.is_online && <span style={{ position: "absolute", top: 0, right: 0, width: 10, height: 10, background: COLORS.green, border: "2px solid #111", borderRadius: "50%" }} />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: "#fff" }}>{u.name}</div>
@@ -2614,7 +2680,7 @@ export default function PostApp() {
     const bl = navigator.language?.slice(0, 2);
     return T[bl] ? bl : "en";
   });
-  const t = T[lang] || T.en;
+  const t = makeLangProxy(T[lang] || T.en);
   const dir = LANGS[lang]?.dir || "ltr";
 
   const [user, setUser] = useState(null);
@@ -2656,7 +2722,17 @@ export default function PostApp() {
     else return { ...post, liked: true, likedColor: color, likes: post.likes + 1 };
   }));
   const handleComment = (id, text) => setPosts(p => p.map(post => post.id === id ? { ...post, comments: [...post.comments, text] } : post));
-  const handleSaveProfile = updated => { setUser(updated); setPosts(p => p.map(post => post.userId === "me" ? { ...post, user: updated.name, handle: updated.handle, avatar: { ...updated.avatar } } : post)); };
+  const handleSaveProfile = updated => {
+    setUser(updated);
+    // Instantly reflect name/handle/avatar changes in all posts and comments
+    setPosts(p => p.map(post => {
+      const updatedPost = post.userId === "me"
+        ? { ...post, user: updated.name, handle: updated.handle, avatar: { ...updated.avatar } }
+        : post;
+      // Update comments by this user inside any post
+      return { ...updatedPost, comments: (updatedPost.comments || []).map(c => c.userId === "me" ? { ...c, user: updated.name, handle: updated.handle } : c) };
+    }));
+  };
 
   const myPosts = posts.filter(p => p.userId === "me");
   const explorePosts = search ? posts.filter(p =>
@@ -2758,19 +2834,59 @@ export default function PostApp() {
             <>
               <div style={{ background: "#111", border: `2px solid ${COLORS.blue}`, boxShadow: `4px 4px 0 ${COLORS.blue}`, marginBottom: 14, overflow: "hidden" }}>
                 <div style={{ height: 4, display: "flex" }}>{ACCENTS.map(c => <div key={c} style={{ flex: 1, background: c }} />)}</div>
-                <div style={{ height: 56, background: `linear-gradient(135deg,${COLORS.blue}44,${COLORS.yellow}22)`, position: "relative" }}>
-                  <button onClick={() => setShowEditProfile(true)} style={{ position: "absolute", top: 7, right: 9, display: "flex", alignItems: "center", gap: 4, background: "rgba(0,0,0,0.6)", border: `1px solid ${COLORS.blue}`, color: COLORS.blue, fontSize: 10, fontWeight: 700, padding: "4px 9px", cursor: "pointer" }}>
+
+                {/* Cover Photo / Video */}
+                <div style={{ height: 90, position: "relative", overflow: "hidden", background: `linear-gradient(135deg,${COLORS.blue}44,${COLORS.yellow}22)` }}>
+                  {user.coverVideo
+                    ? <video src={user.coverVideo} autoPlay loop muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : user.coverPhoto
+                      ? <img src={user.coverPhoto} alt="cover" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : null}
+                  <button onClick={() => setShowEditProfile(true)} style={{ position: "absolute", top: 8, right: 9, display: "flex", alignItems: "center", gap: 4, background: "rgba(0,0,0,0.7)", border: `1px solid ${COLORS.blue}`, color: COLORS.blue, fontSize: 10, fontWeight: 700, padding: "4px 9px", cursor: "pointer" }}>
                     <Ic.Edit color={COLORS.blue} /> {t.edit}
                   </button>
                 </div>
+
                 <div style={{ padding: "0 14px 14px" }}>
-                  <div style={{ marginTop: -28, marginBottom: 8 }}><Avatar avatar={user.avatar} size={60} border={3} borderColor={COLORS.blue} /></div>
-                  <div style={{ fontWeight: 900, fontSize: 17, color: "#fff" }}>{user.name}</div>
-                  <div style={{ color: COLORS.muted, fontSize: 12, marginBottom: 5 }}>{user.handle}</div>
+                  {/* Avatar row with online dot */}
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginTop: -30, marginBottom: 10 }}>
+                    <div style={{ position: "relative", flexShrink: 0 }}>
+                      {user.profileVideo
+                        ? <div style={{ width: 64, height: 64, border: `3px solid ${COLORS.blue}`, overflow: "hidden" }}>
+                            <video src={user.profileVideo} autoPlay loop muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          </div>
+                        : <Avatar avatar={user.avatar} size={64} border={3} borderColor={COLORS.blue} />}
+                      <span style={{ position: "absolute", bottom: 2, right: 2, width: 12, height: 12, background: COLORS.green, border: "2px solid #111", borderRadius: "50%" }} title={t.onlineNow} />
+                    </div>
+                    <div style={{ flex: 1, paddingBottom: 4 }}>
+                      <div style={{ fontWeight: 900, fontSize: 16, color: "#fff", lineHeight: 1.2 }}>{user.name}</div>
+                      <div style={{ color: COLORS.muted, fontSize: 11 }}>{user.handle}</div>
+                    </div>
+                  </div>
+
+                  {/* Location */}
                   {user.location && <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 5 }}><Ic.Pin color={COLORS.yellow} /><span style={{ fontSize: 12, color: COLORS.yellow, fontWeight: 600 }}>{user.location}</span></div>}
-                  {user.about && <div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.5, marginBottom: 10, padding: "7px 9px", background: "#0d0d0d", borderLeft: `3px solid ${COLORS.blue}` }}>{user.about}</div>}
+
+                  {/* About */}
+                  {user.about && <div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.5, marginBottom: 8, padding: "6px 9px", background: "#0d0d0d", borderLeft: `3px solid ${COLORS.blue}` }}>{user.about}</div>}
+
+                  {/* Website */}
+                  {user.website && (
+                    <div style={{ marginBottom: 8 }}>
+                      <a href={user.website.startsWith("http") ? user.website : `https://${user.website}`} target="_blank" rel="noreferrer"
+                        style={{ fontSize: 12, color: COLORS.blue, fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+                        🌐 <span style={{ borderBottom: `1px solid ${COLORS.blue}` }}>{user.website.replace(/^https?:\/\//, "")}</span>
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Stats: Posts / Followers / Following */}
                   <div style={{ display: "flex", borderTop: "1px solid #1e1e1e", paddingTop: 9, marginTop: 4 }}>
-                    {[{ label: t.posts, val: myPosts.length, color: COLORS.yellow }, { label: t.likes, val: myPosts.reduce((a, p) => a + p.likes, 0), color: COLORS.green }, { label: t.friendsCount, val: friends.length, color: COLORS.red }].map(({ label, val, color }) => (
+                    {[
+                      { label: t.posts, val: myPosts.length, color: COLORS.yellow },
+                      { label: t.followers, val: user.followers?.length ?? 0, color: COLORS.green },
+                      { label: t.following, val: user.following?.length ?? 0, color: COLORS.red },
+                    ].map(({ label, val, color }) => (
                       <div key={label} style={{ flex: 1, textAlign: "center" }}>
                         <div style={{ fontWeight: 900, fontSize: 18, color }}>{val}</div>
                         <div style={{ fontSize: 9, color: COLORS.muted, letterSpacing: 0.5 }}>{label}</div>
