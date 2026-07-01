@@ -1173,7 +1173,8 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
   const [incomingIds,setIncomingIds]=useState(new Set());     // incoming pending — show "Accept"
   const [followingIds,setFollowingIds]=useState(new Set());
   const [actionLoading,setActionLoading]=useState({});
-  const [socialLoaded,setSocialLoaded]=useState(false); // gate: disable buttons until state is known
+  const [socialLoaded,setSocialLoaded]=useState(false);
+  const [unfollowConfirm,setUnfollowConfirm]=useState(null); // uid asking confirm before unfollow
 
   const loadSocial=()=>{
     setSocialLoaded(false);
@@ -1219,11 +1220,28 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
   };
 
   const toggleFollow=async(uid, isFollowing)=>{
+    if(isFollowing){
+      // First tap on "Following" → show "Unfollow?" confirm; second tap → actually unfollow
+      if(unfollowConfirm===uid){
+        setActionLoading(a=>({...a,[uid+"_follow"]:true}));
+        try{
+          await api(`/users/${uid}/unfollow`,"POST",null,token);
+          setFollowingIds(s=>{const n=new Set(s);n.delete(uid);return n;});
+          showToast("Unfollowed",COLORS.muted);
+        }catch(e){showToast(e.message,COLORS.red);}
+        setUnfollowConfirm(null);
+        setActionLoading(a=>({...a,[uid+"_follow"]:false}));
+      } else {
+        setUnfollowConfirm(uid);
+      }
+      return;
+    }
+    setUnfollowConfirm(null);
     setActionLoading(a=>({...a,[uid+"_follow"]:true}));
     try{
-      await api(`/users/${uid}/${isFollowing ? "unfollow" : "follow"}`, "POST", null, token);
-      setFollowingIds(s=>{const n=new Set(s); isFollowing?n.delete(uid):n.add(uid); return n;});
-      showToast(isFollowing ? "Unfollowed" : "Following! 👍", isFollowing ? COLORS.muted : COLORS.blue);
+      await api(`/users/${uid}/follow`,"POST",null,token);
+      setFollowingIds(s=>new Set([...s,uid]));
+      showToast("Following! 👍",COLORS.blue);
     }catch(e){showToast(e.message,COLORS.red);}
     setActionLoading(a=>({...a,[uid+"_follow"]:false}));
   };
@@ -1253,12 +1271,17 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
             </div>
             {/* Action buttons — stop propagation so card click doesn't fire */}
             <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
-              {/* Follow / Unfollow */}
+              {/* Follow / Unfollow (tap Following → Unfollow? confirm, tap again → confirm) */}
               <button
                 onClick={()=>toggleFollow(u.id, isFollowing)}
                 disabled={folLoading}
-                style={{background:isFollowing?"#e0e0e0":COLORS.blue,color:isFollowing?"#333":"#fff",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:folLoading?0.6:1}}>
-                {isFollowing ? "Following" : "Follow"}
+                style={{
+                  background: unfollowConfirm===u.id ? "#ff4d4d" : isFollowing ? "#e0e0e0" : COLORS.blue,
+                  color: unfollowConfirm===u.id ? "#fff" : isFollowing ? "#333" : "#fff",
+                  border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,
+                  opacity:folLoading?0.6:1,transition:"all 0.15s"
+                }}>
+                {unfollowConfirm===u.id ? "Unfollow?" : isFollowing ? "Following ✓" : "Follow"}
               </button>
               {/* Connect state machine */}
               {isFriend
@@ -1281,7 +1304,6 @@ function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onG
   const [profile,setProfile]=useState(null);
   const [posts,setPosts]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [isFollowing,setIsFollowing]=useState(false);
   const [friendStatus,setFriendStatus]=useState("none"); // none | pending_out | pending_in | friends
   const [actLoading,setActLoading]=useState(false);
 
@@ -1291,10 +1313,8 @@ function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onG
       api(`/users/${userId}`,"GET",null,token),
       api("/friends","GET",null,token),
       api(`/posts?user_id=${userId}`,"GET",null,token),
-      api("/auth/me","GET",null,token),
-    ]).then(([prof,friendData,postsData,me])=>{
+    ]).then(([prof,friendData,postsData])=>{
       setProfile(prof);
-      setIsFollowing((me.following||[]).includes(userId));
       const isFr=(friendData.friends||[]).some(f=>f.id===userId);
       const isPendOut=(friendData.pending_outgoing||[]).some(r=>r.to_id===userId);
       const isPendIn=(friendData.pending_incoming||[]).some(r=>r.from_id===userId);
@@ -1304,18 +1324,6 @@ function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onG
   },[userId]);
 
   const fmtNum=n=>n>=1000?(n/1000).toFixed(1)+"K":(n||0);
-
-  const toggleFollow=async()=>{
-    setActLoading(true);
-    try{
-      await api(`/users/${userId}/${isFollowing?"unfollow":"follow"}`,"POST",null,token);
-      const delta=isFollowing?-1:1;
-      setIsFollowing(f=>!f);
-      setProfile(p=>p?{...p,stats:{...(p.stats||{}),followers:(p.stats?.followers||0)+delta}}:p);
-      showToast(isFollowing?"Unfollowed":"Following! 👍",isFollowing?COLORS.muted:COLORS.blue);
-    }catch(e){showToast(e.message,COLORS.red);}
-    setActLoading(false);
-  };
 
   const sendRequest=async()=>{
     setActLoading(true);
@@ -1387,9 +1395,6 @@ function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onG
                 : profile.avatar_letter}
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <button onClick={toggleFollow} disabled={actLoading} style={{background:isFollowing?"#e0e0e0":COLORS.blue,color:isFollowing?"#333":"#fff",border:"none",borderRadius:12,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:13,opacity:actLoading?0.6:1}}>
-              {isFollowing?"Following ✓":"Follow"}
-            </button>
             <ConnectBtn />
             {friendStatus==="friends" && onGoMessages && (
               <button onClick={()=>onGoMessages(profile)} style={{background:"var(--input-bg)",border:"1px solid var(--border)",borderRadius:12,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:16,color:"var(--text)"}}>💬</button>
@@ -1442,12 +1447,37 @@ function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onG
 
 function FriendsTab({ token, user, showToast, onViewProfile }) {
   const [data,setData]=useState({friends:[],pending_incoming:[],pending_outgoing:[]});
-  const load=async()=>{ try{const d=await api("/friends","GET",null,token);setData(d);}catch(e){} };
+  const [followingList,setFollowingList]=useState([]);
+  const [unfollowConfirm,setUnfollowConfirm]=useState(null);
+
+  const load=async()=>{
+    try{
+      const [d,fl]=await Promise.all([
+        api("/friends","GET",null,token),
+        api(`/users/${user.id}/following`,"GET",null,token),
+      ]);
+      setData(d);
+      setFollowingList(fl||[]);
+    }catch(e){}
+  };
   useEffect(()=>{load();},[]);
-  const accept=async(uid)=>{ try{ await api("/friends/accept","POST",{target_user_id:uid},token);showToast("Friends now! 🎉",COLORS.green);load(); }catch(e){showToast(e.message,COLORS.red);} };
+
+  const accept=async(uid)=>{ try{ await api("/friends/accept","POST",{target_user_id:uid},token);showToast("Connected! 🎉",COLORS.green);load(); }catch(e){showToast(e.message,COLORS.red);} };
   const decline=async(uid)=>{ try{ await api("/friends/decline","POST",{target_user_id:uid},token);load(); }catch(e){} };
+
+  const doUnfollow=async(uid)=>{
+    try{
+      await api(`/users/${uid}/unfollow`,"POST",null,token);
+      setFollowingList(l=>l.filter(u=>u.id!==uid));
+      setUnfollowConfirm(null);
+      showToast("Unfollowed",COLORS.muted);
+    }catch(e){showToast(e.message,COLORS.red);}
+  };
+
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
+
+      {/* ── REQUESTS ── */}
       {data.pending_incoming.length>0&&<>
         <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,fontSize:13,letterSpacing:2}}>REQUESTS 📬</div>
         {data.pending_incoming.map(r=>{
@@ -1470,21 +1500,58 @@ function FriendsTab({ token, user, showToast, onViewProfile }) {
             </div>
           </div>
         );})}
+        <div style={{height:8}} />
       </>}
-      <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,marginTop:16,fontSize:13,letterSpacing:2}}>FRIENDS 🤝</div>
-      {data.friends.length===0&&<div style={{color:"var(--muted)",textAlign:"center",padding:30}}>No friends yet. Start discovering! 🔍</div>}
-      {data.friends.map(f=>(
-        <div key={f.id} onClick={()=>onViewProfile&&onViewProfile(f.id)} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
-          <div style={{width:40,height:40,borderRadius:12,background:normalizeColor(f.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden",flexShrink:0}}>
-            {f.avatar_photo?<img src={f.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:f.avatar_letter}
+
+      {/* ── CONNECT (accepted = chat friends) ── */}
+      <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:4,marginTop:8,fontSize:13,letterSpacing:2}}>CONNECT 🔗</div>
+      <div style={{color:"var(--muted)",fontSize:12,marginBottom:10}}>Jo accept kare — unse chat kar sakte ho</div>
+      {data.friends.length===0
+        ? <div style={{color:"var(--muted)",textAlign:"center",padding:"20px 0"}}>Abhi koi connection nahi. Connect request bhejo! 🤝</div>
+        : data.friends.map(f=>(
+          <div key={f.id} onClick={()=>onViewProfile&&onViewProfile(f.id)} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+            <div style={{width:40,height:40,borderRadius:12,background:normalizeColor(f.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden",flexShrink:0}}>
+              {f.avatar_photo?<img src={f.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:f.avatar_letter}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,color:"var(--text)"}}>{f.name}</div>
+              <div style={{color:"var(--muted)",fontSize:12}}>{f.handle}</div>
+            </div>
+            <span style={{color:COLORS.blue,fontSize:12,fontWeight:700}}>💬 Chat</span>
           </div>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:700,color:"var(--text)"}}>{f.name}</div>
-            <div style={{color:"var(--muted)",fontSize:12}}>{f.handle}</div>
+        ))
+      }
+
+      {/* ── FOLLOWING ── */}
+      <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:4,marginTop:24,fontSize:13,letterSpacing:2}}>FOLLOWING 👁</div>
+      <div style={{color:"var(--muted)",fontSize:12,marginBottom:10}}>Jinhe tum follow kar rahe ho</div>
+      {followingList.length===0
+        ? <div style={{color:"var(--muted)",textAlign:"center",padding:"20px 0"}}>Kisi ko follow nahi kar rahe. Discover karo! 🔍</div>
+        : followingList.map(fu=>(
+          <div key={fu.id} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+            <div onClick={()=>onViewProfile&&onViewProfile(fu.id)} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer",minWidth:0}}>
+              <div style={{width:40,height:40,borderRadius:12,background:normalizeColor(fu.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden",flexShrink:0}}>
+                {fu.avatar_photo?<img src={fu.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:fu.avatar_letter}
+              </div>
+              <div style={{minWidth:0}}>
+                <div style={{fontWeight:700,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fu.name}</div>
+                <div style={{color:"var(--muted)",fontSize:12}}>{fu.handle}</div>
+              </div>
+            </div>
+            <button
+              onClick={()=>unfollowConfirm===fu.id ? doUnfollow(fu.id) : setUnfollowConfirm(fu.id)}
+              style={{
+                background:unfollowConfirm===fu.id?"#ff4d4d":"#e8e8e8",
+                color:unfollowConfirm===fu.id?"#fff":"#333",
+                border:"none",borderRadius:10,padding:"7px 13px",
+                fontWeight:700,cursor:"pointer",fontSize:12,
+                transition:"all 0.15s",flexShrink:0
+              }}>
+              {unfollowConfirm===fu.id?"Unfollow?":"Following ✓"}
+            </button>
           </div>
-          <span style={{color:"var(--muted)",fontSize:18}}>›</span>
-        </div>
-      ))}
+        ))
+      }
     </div>
   );
 }
