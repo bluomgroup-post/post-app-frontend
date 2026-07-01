@@ -1446,21 +1446,19 @@ function FriendsTab({ token, user, showToast, onViewProfile }) {
   useEffect(()=>{load();},[]);
   const accept=async(uid)=>{ try{ await api("/friends/accept","POST",{target_user_id:uid},token);showToast("Friends now! 🎉",COLORS.green);load(); }catch(e){showToast(e.message,COLORS.red);} };
   const decline=async(uid)=>{ try{ await api("/friends/decline","POST",{target_user_id:uid},token);load(); }catch(e){} };
-  const Avatar=({u,size=40})=>(
-    <div style={{width:size,height:size,borderRadius:size/2.5,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:size*0.45,flexShrink:0,overflow:"hidden"}}>
-      {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:(u.avatar_letter||"?")}
-    </div>
-  );
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
       {data.pending_incoming.length>0&&<>
         <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,fontSize:13,letterSpacing:2}}>REQUESTS 📬</div>
         {data.pending_incoming.map(r=>{
           const fu=r.from_user||{};
+          const targetId=fu.id||r.from_id;
           return (
           <div key={r.id} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
-            <div onClick={()=>onViewProfile&&fu.id&&onViewProfile(fu.id||r.from_id)} style={{display:"flex",alignItems:"center",gap:10,flex:1,cursor:"pointer"}}>
-              <Avatar u={fu} size={40} />
+            <div onClick={()=>onViewProfile&&onViewProfile(targetId)} style={{display:"flex",alignItems:"center",gap:10,flex:1,cursor:"pointer"}}>
+              <div style={{width:40,height:40,borderRadius:14,background:normalizeColor(fu.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,flexShrink:0,overflow:"hidden"}}>
+                {fu.avatar_photo?<img src={fu.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:(fu.avatar_letter||"?")}
+              </div>
               <div>
                 <div style={{fontWeight:700,fontSize:14,color:"var(--text)"}}>{fu.name||r.from_id}</div>
                 <div style={{color:"var(--muted)",fontSize:12}}>{fu.handle||""}</div>
