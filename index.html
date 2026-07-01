@@ -625,65 +625,79 @@ function BentoPostCard({ post, user, onLike, onDelete, onComment, isLarge }) {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const myLike = post.likes?.find(l => l.user_id === user.id);
+  const accent = post.accent || COLORS.yellow;
+  const accentLight = accent + "18";
 
   return (
-    <div style={{ background: COLORS.card, border: `2px solid ${post.accent || COLORS.yellow}`, borderRadius: "20px", padding: "20px", display: "flex", flexDirection: "column", gap: "12px", transition: "transform 0.2s", gridColumn: isLarge ? "span 2" : "span 1", position: "relative", overflow: "hidden" }}
-      onMouseEnter={e => e.currentTarget.style.transform = "translateY(-4px)"}
-      onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+    <div style={{ background: accentLight, border: `2px solid ${accent}`, borderRadius: "20px", display: "flex", flexDirection: "column", transition: "transform 0.2s, box-shadow 0.2s", gridColumn: isLarge ? "span 2" : "span 1", position: "relative", overflow: "hidden", boxShadow: `0 2px 12px ${accent}22` }}
+      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${accent}44`; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 2px 12px ${accent}22`; }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-        <div style={{ display: "flex", gap: "12px", alignItems: "start", flex: 1 }}>
-          <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: post.avatar_bg || COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "900", fontSize: "20px", flexShrink: 0, overflow: "hidden" }}>
-            {post.avatar_photo ? <img src={post.avatar_photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : post.avatar_letter}
+      {/* Colored top strip */}
+      <div style={{ height: "6px", background: accent, width: "100%" }} />
+
+      <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flex: 1 }}>
+            <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: post.avatar_bg || accent, border: `2px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "900", fontSize: "20px", flexShrink: 0, overflow: "hidden" }}>
+              {post.avatar_photo ? <img src={post.avatar_photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : post.avatar_letter}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: "800", fontSize: "14px", color: "#111" }}>{post.user_name}</div>
+              <div style={{ color: COLORS.muted, fontSize: "12px" }}>{post.user_handle}</div>
+              {post.location && <div style={{ color: COLORS.muted, fontSize: "11px", marginTop: "2px" }}>📍 {post.location}</div>}
+            </div>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: "700", fontSize: "14px" }}>{post.user_name}</div>
-            <div style={{ color: COLORS.muted, fontSize: "12px" }}>{post.user_handle}</div>
-            {post.location && <div style={{ color: COLORS.muted, fontSize: "11px", marginTop: "4px" }}>📍 {post.location}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+            {post.user_id === user.id && (
+              <button onClick={() => onDelete(post.id)} style={{ color: COLORS.red, background: "none", border: "none", cursor: "pointer", fontSize: "16px", padding: "4px" }}>🗑</button>
+            )}
           </div>
         </div>
-        {post.user_id === user.id && (
-          <button onClick={() => onDelete(post.id)} style={{ color: COLORS.red, background: "none", border: "none", cursor: "pointer", fontSize: "18px", padding: "4px" }}>🗑</button>
-        )}
-      </div>
 
-      <div style={{ fontSize: isLarge ? "16px" : "14px", lineHeight: "1.6", color: COLORS.text, flexGrow: 1 }}>{post.content}</div>
+        {/* Content */}
+        <div style={{ fontSize: isLarge ? "16px" : "14px", lineHeight: "1.65", color: "#111111", flexGrow: 1, fontWeight: 400 }}>{post.content}</div>
 
-      <div style={{ height: "4px", background: post.accent || COLORS.yellow, borderRadius: "2px", width: "40px" }} />
-
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: COLORS.muted }}>
-        <span>{post.likes?.length || 0} likes</span>
-        <span>{post.comments?.length || 0} comments</span>
-      </div>
-
-      <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #E5E5E5", paddingTop: "12px", justifyContent: "space-around" }}>
-        <div style={{ display: "flex", gap: "4px" }}>
-          {ACCENTS.map(c => (
-            <button key={c} onClick={() => onLike(post.id, c)} style={{ width: "24px", height: "24px", borderRadius: "50%", background: c, border: myLike?.color === c ? `2px solid ${COLORS.text}` : "2px solid transparent", cursor: "pointer" }} />
-          ))}
+        {/* Stats */}
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: COLORS.muted }}>
+          <span>{post.likes?.length || 0} likes</span>
+          <span>{post.comments?.length || 0} comments</span>
         </div>
-        <button onClick={() => setShowComments(!showComments)} style={{ background: "none", border: "none", color: COLORS.muted, cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}>
-          💬 Comment
-        </button>
-      </div>
 
-      {showComments && (
-        <div style={{ borderTop: "1px solid #E5E5E5", paddingTop: "12px" }}>
-          <div style={{ maxHeight: "200px", overflowY: "auto", marginBottom: "8px" }}>
-            {post.comments?.map((c, i) => (
-              <div key={i} style={{ fontSize: "12px", padding: "6px 0", borderBottom: "1px solid #F0F0F0" }}>
-                <span style={{ fontWeight: "700", color: COLORS.yellow }}>{c.user_name}: </span>
-                <span style={{ color: "#555555" }}>{c.text}</span>
-              </div>
+        {/* Actions */}
+        <div style={{ display: "flex", gap: "8px", borderTop: `1px solid ${accent}44`, paddingTop: "12px", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "6px" }}>
+            {ACCENTS.map(c => (
+              <button key={c} onClick={() => onLike(post.id, c)} style={{ width: "26px", height: "26px", borderRadius: "50%", background: c, border: myLike?.color === c ? "3px solid #111" : "3px solid transparent", cursor: "pointer", transition: "transform 0.15s", transform: myLike?.color === c ? "scale(1.2)" : "scale(1)" }} />
             ))}
           </div>
-          <div style={{ display: "flex", gap: "6px" }}>
-            <input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Comment..." style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: "12px" }}
-              onKeyDown={e => { if (e.key === "Enter" && commentText.trim()) { onComment(post.id, commentText); setCommentText(""); } }} />
-            <button onClick={() => { if (commentText.trim()) { onComment(post.id, commentText); setCommentText(""); } }} style={{ background: COLORS.yellow, color: "#000", border: "none", borderRadius: "6px", padding: "6px 10px", fontWeight: "700", cursor: "pointer", fontSize: "12px" }}>→</button>
-          </div>
+          <button onClick={() => setShowComments(!showComments)} style={{ background: showComments ? accent : "transparent", border: `1px solid ${accent}`, color: showComments ? "#000" : accent, cursor: "pointer", fontSize: "12px", fontWeight: 700, borderRadius: 8, padding: "5px 12px", transition: "all 0.2s" }}>
+            💬 {showComments ? "Hide" : "Comment"}
+          </button>
         </div>
-      )}
+
+        {/* Comments */}
+        {showComments && (
+          <div style={{ borderTop: `1px solid ${accent}33`, paddingTop: "12px" }}>
+            <div style={{ maxHeight: "180px", overflowY: "auto", marginBottom: "10px" }}>
+              {post.comments?.length === 0 && <div style={{ color: COLORS.muted, fontSize: 12, textAlign: "center", padding: "10px 0" }}>No comments yet</div>}
+              {post.comments?.map((c, i) => (
+                <div key={i} style={{ fontSize: "12px", padding: "6px 0", borderBottom: `1px solid ${accent}22` }}>
+                  <span style={{ fontWeight: "700", color: accent }}>{c.user_name}: </span>
+                  <span style={{ color: "#444" }}>{c.text}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Write a comment..." style={{ ...inputStyle, flex: 1, padding: "8px 12px", fontSize: "13px", border: `1px solid ${accent}` }}
+                onKeyDown={e => { if (e.key === "Enter" && commentText.trim()) { onComment(post.id, commentText); setCommentText(""); } }} />
+              <button onClick={() => { if (commentText.trim()) { onComment(post.id, commentText); setCommentText(""); } }} style={{ background: accent, color: "#000", border: "none", borderRadius: "10px", padding: "8px 14px", fontWeight: "700", cursor: "pointer", fontSize: "14px" }}>→</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
