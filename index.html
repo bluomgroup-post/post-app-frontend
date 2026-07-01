@@ -28,6 +28,18 @@ const COLORS = {
 };
 const ACCENTS = [COLORS.yellow, COLORS.green, COLORS.red, COLORS.blue];
 const normalizeColor = (c) => c && c.toUpperCase() === "#2979FF" ? "#29B6F6" : c;
+const CATEGORIES = [
+  "Actor / Actress","Artist","Athlete","Author / Writer","Blogger",
+  "Brand / Product","Business Owner","Chef / Food Creator","Coach / Mentor",
+  "Comedian","Community Figure","Content Creator","Designer","Doctor / Healthcare",
+  "Educator / Teacher","Entrepreneur","Fashion Designer","Filmmaker",
+  "Fitness Trainer","Gamer / Streamer","Government Official","Journalist",
+  "Lawyer","Model","Motivational Speaker","Musician / Singer","News / Media",
+  "NGO / Non-Profit","Personal Blog","Photographer","Podcaster","Politician",
+  "Public Figure","Real Estate","Religious Leader","Researcher / Scientist",
+  "Software Developer","Sports Analyst","Startup Founder","Travel Blogger",
+  "YouTuber","Other"
+];
 
 async function api(path, method = "GET", body = null, token = null) {
   const headers = { "Content-Type": "application/json" };
@@ -815,6 +827,7 @@ function ProfileTab({ token, user, setUser, showToast }) {
   const [about, setAbout] = useState(user.about || "");
   const [location, setLocation] = useState(user.location || "");
   const [website, setWebsite] = useState(user.website || "");
+  const [category, setCategory] = useState(user.category || "");
   const [avatarBg, setAvatarBg] = useState(user.avatar_bg || COLORS.yellow);
   const [avatarPhoto, setAvatarPhoto] = useState(user.avatar_photo || null);
   const [coverPhoto, setCoverPhoto] = useState(user.cover_photo || null);
@@ -844,7 +857,8 @@ function ProfileTab({ token, user, setUser, showToast }) {
         avatar_photo: avatarPhoto,
         cover_photo: coverPhoto,
         username: username.toLowerCase().replace(/[^a-z0-9_]/g, ""),
-        handle: `@${username.toLowerCase().replace(/[^a-z0-9_]/g, "")}`
+        handle: `@${username.toLowerCase().replace(/[^a-z0-9_]/g, "")}`,
+        category
       }, token);
       setUser(u);
       setEditing(false);
@@ -892,6 +906,7 @@ function ProfileTab({ token, user, setUser, showToast }) {
           <>
             <div style={{ fontWeight: 900, fontSize: 20 }}>{user.name}</div>
             <div style={{ color: COLORS.muted, fontSize: 14, marginTop: 2 }}>@{user.username || user.handle?.replace("@","")}</div>
+            {user.category && <div style={{ display:"inline-block", background:"#f0f0f0", color:"#444", fontSize:12, fontWeight:600, borderRadius:20, padding:"3px 12px", marginTop:6 }}>{user.category}</div>}
             {user.about && <div style={{ fontSize: 14, marginTop: 8, lineHeight: 1.55, color: "#333" }}>{user.about}</div>}
             <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
               {user.location && <span style={{ color: COLORS.muted, fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{user.location}</span>}
@@ -922,6 +937,14 @@ function ProfileTab({ token, user, setUser, showToast }) {
                 <input value={val} onChange={e => setter(e.target.value)} placeholder={ph} type={type} style={inputStyle} />
               </div>
             ))}
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 5 }}>CATEGORY</div>
+              <select value={category} onChange={e=>setCategory(e.target.value)} style={{ ...inputStyle, appearance:"none", WebkitAppearance:"none", cursor:"pointer" }}>
+                <option value="">Select category...</option>
+                {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
 
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 5 }}>USERNAME</div>
