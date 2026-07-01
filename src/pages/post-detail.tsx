@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { MessageSquare, Heart, Bookmark, ArrowLeft, Trash2, Loader2 } from "lucide-react";
-import { useGetPost, useListComments, useAddComment, useToggleLike, useToggleSave, useDeletePost } from "@workspace/api-client-react";
+import { useGetPost, useListComments, useAddComment, useToggleLike, useToggleSave, useDeletePost } from "../api";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -114,7 +114,7 @@ export default function PostDetail() {
       </button>
 
       {/* Post content */}
-      <div className="border-4 bg-[#0a0a0a]" style={{ borderColor: catColor }}>
+      <div className="border-4 bg-white" style={{ borderColor: catColor }}>
         <div className="p-4 border-b-2 flex items-center justify-between" style={{ borderColor: catColor }}>
           <div className="flex items-center gap-3">
             <span className="font-bold uppercase tracking-tight text-lg">{post.username}</span>
@@ -202,7 +202,7 @@ export default function PostDetail() {
             </div>
           ) : comments.length > 0 ? (
             comments.map((comment) => (
-              <div key={comment.id} className="border-2 border-white/20 p-4 bg-white/5">
+              <div key={comment.id} className="border-2 border-black/20 p-4 bg-black/5">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="font-bold uppercase text-sm">{comment.username}</span>
                   <span className="text-white/40 text-xs font-mono">{new Date(comment.createdAt).toLocaleDateString()}</span>
