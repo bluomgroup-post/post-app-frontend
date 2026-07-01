@@ -508,7 +508,7 @@ function AccountCreatedScreen({ onContinue }) {
 
 function HomeTab({ token, user, showToast }) {
   const [posts,setPosts]=useState([]); const [showCompose,setShowCompose]=useState(false); const [loading,setLoading]=useState(true);
-  const loadPosts=async()=>{ try{const d=await api("/posts","GET",null,token);setPosts(d);}catch(e){showToast(e.message,COLORS.red);} setLoading(false); };
+  const loadPosts=async()=>{ try{const d=await api("/posts","GET",null,token);setPosts(d.posts||d);}catch(e){showToast(e.message,COLORS.red);} setLoading(false); };
   useEffect(()=>{loadPosts();},[]);
   const handleLike=async(pid,color)=>{ try{await api(`/posts/${pid}/like`,"POST",{color},token);loadPosts();}catch(e){} };
   const handleDelete=async(pid)=>{ try{await api(`/posts/${pid}`,"DELETE",null,token);showToast("Deleted",COLORS.red);loadPosts();}catch(e){showToast(e.message,COLORS.red);} };
@@ -581,7 +581,7 @@ function ComposeModal({ token, onClose, onPost, showToast }) {
 
 function DiscoverTab({ token, user, showToast }) {
   const [users,setUsers]=useState([]); const [q,setQ]=useState(""); const [loading,setLoading]=useState(true);
-  useEffect(()=>{ api(`/users${q?`?q=${q}`:""}`, "GET",null,token).then(setUsers).catch(()=>{}).finally(()=>setLoading(false)); },[q]);
+  useEffect(()=>{ api(`/users${q?`?q=${q}`:""}`, "GET",null,token).then(d=>setUsers(d.users||d)).catch(()=>{}).finally(()=>setLoading(false)); },[q]);
   const sendRequest=async(uid)=>{ try{await api("/friends/request","POST",{target_user_id:uid},token);showToast("Request sent! 🤝",COLORS.green);}catch(e){showToast(e.message,COLORS.red);} };
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
