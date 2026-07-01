@@ -9,11 +9,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0a0a0a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+body { background: #ffffff; color: #111111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 input, textarea, button { font-family: inherit; }
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #111; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+::-webkit-scrollbar-track { background: #f0f0f0; }
+::-webkit-scrollbar-thumb { background: #bbb; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -24,7 +24,7 @@ const { useState, useEffect, useRef } = React;
 const API = "https://post-app-backend-dqtp.onrender.com/api";
 const COLORS = {
   yellow: "#FFD600", green: "#00C853", red: "#FF1744", blue: "#2979FF",
-  dark: "#0A0A0A", card: "#111111", text: "#FFFFFF", muted: "#666666",
+  dark: "#FFFFFF", card: "#FFFFFF", text: "#111111", muted: "#666666",
 };
 const ACCENTS = [COLORS.yellow, COLORS.green, COLORS.red, COLORS.blue];
 
@@ -37,12 +37,12 @@ async function api(path, method = "GET", body = null, token = null) {
   return data;
 }
 
-const inputStyle = { width:"100%", background:"#0a0a0a", border:"1px solid #333", borderRadius:12, padding:"12px 16px", color:"#fff", fontSize:15, outline:"none", boxSizing:"border-box" };
+const inputStyle = { width:"100%", background:"#f5f5f5", border:"1px solid #ddd", borderRadius:12, padding:"12px 16px", color:"#111111", fontSize:15, outline:"none", boxSizing:"border-box" };
 const btnStyle = { width:"100%", padding:"14px", background:COLORS.yellow, color:"#000", fontWeight:900, fontSize:15, border:"none", borderRadius:14, cursor:"pointer", letterSpacing:1 };
 
 function Toast({ toast }) {
   if (!toast) return null;
-  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"#1a1a1a", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:16, zIndex:9999, fontWeight:700, fontSize:14, whiteSpace:"nowrap" }}>{toast.msg}</div>;
+  return <div style={{ position:"fixed", top:24, left:"50%", transform:"translateX(-50%)", background:"#ffffff", border:`1px solid ${toast.color}`, color:toast.color, padding:"12px 24px", borderRadius:16, zIndex:9999, fontWeight:700, fontSize:14, whiteSpace:"nowrap" }}>{toast.msg}</div>;
 }
 
 function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
@@ -104,7 +104,7 @@ function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
 
   return (
     <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#111", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
+      <div style={{ background:"#ffffff", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
           <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>
@@ -114,7 +114,7 @@ function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
 
         {step==="phone" && <>
           <div style={{ display:"flex", gap:8 }}>
-            <div style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:12, padding:"12px 16px", color:"#fff", fontSize:15, minWidth:70, textAlign:"center" }}>+91</div>
+            <div style={{ background:"#f5f5f5", border:"1px solid #ddd", borderRadius:12, padding:"12px 16px", color:"#111111", fontSize:15, minWidth:70, textAlign:"center" }}>+91</div>
             <input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} placeholder="Phone number" type="tel" maxLength={10} style={{...inputStyle, flex:1}} />
           </div>
           <button onClick={sendOtp} disabled={loading} style={{...btnStyle, marginTop:20, opacity:loading?0.7:1}}>
@@ -141,7 +141,7 @@ function PhoneSignupScreen({ onBack, onSuccess, showToast }) {
           </div>
           <div style={{marginTop:12}}>
             <div style={{color:COLORS.muted,fontSize:12,marginBottom:6}}>Date of Birth</div>
-            <input value={dob} onChange={e=>setDob(e.target.value)} type="date" max={new Date().toISOString().split("T")[0]} style={{...inputStyle,colorScheme:"dark"}} />
+            <input value={dob} onChange={e=>setDob(e.target.value)} type="date" max={new Date().toISOString().split("T")[0]} style={{...inputStyle,colorScheme:"light"}} />
           </div>
           <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password (min 6)" type="password" style={{...inputStyle, marginTop:12}} />
           <input value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Confirm Password" type="password" style={{...inputStyle,marginTop:12,borderColor:confirmPassword&&password!==confirmPassword?COLORS.red:"#333"}} />
@@ -224,7 +224,7 @@ function EmailSignupScreen({ onBack, onSuccess, showToast }) {
 
   return (
     <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#111", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
+      <div style={{ background:"#ffffff", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
           <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>
@@ -258,7 +258,7 @@ function EmailSignupScreen({ onBack, onSuccess, showToast }) {
           </div>
           <div style={{marginTop:12}}>
             <div style={{color:COLORS.muted,fontSize:12,marginBottom:6}}>Date of Birth</div>
-            <input value={dob} onChange={e=>setDob(e.target.value)} type="date" max={new Date().toISOString().split("T")[0]} style={{...inputStyle,colorScheme:"dark"}} />
+            <input value={dob} onChange={e=>setDob(e.target.value)} type="date" max={new Date().toISOString().split("T")[0]} style={{...inputStyle,colorScheme:"light"}} />
           </div>
           <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password (min 6)" type="password" style={{...inputStyle, marginTop:12}} />
           <input value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Confirm Password" type="password" style={{...inputStyle,marginTop:12,borderColor:confirmPassword&&password!==confirmPassword?COLORS.red:"#333"}} />
@@ -303,13 +303,13 @@ function PhoneLoginScreen({ onBack, onSuccess, showToast }) {
 
   return (
     <div style={{ minHeight:"100vh", background:COLORS.dark, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#111", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
+      <div style={{ background:"#ffffff", border:`1px solid ${COLORS.yellow}`, borderRadius:24, padding:32, width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ fontSize:56, fontWeight:900, color:COLORS.yellow, letterSpacing:8 }}>POST</div>
           <div style={{ color:COLORS.muted, fontSize:14, marginTop:8 }}>Sign In with Phone</div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-          <div style={{ background:"#1a1a1a", border:"1px solid #333", borderRadius:12, padding:"12px 16px", color:"#fff", fontSize:15, minWidth:70, textAlign:"center" }}>+91</div>
+          <div style={{ background:"#f5f5f5", border:"1px solid #ddd", borderRadius:12, padding:"12px 16px", color:"#111111", fontSize:15, minWidth:70, textAlign:"center" }}>+91</div>
           <input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} placeholder="Phone number" type="tel" maxLength={10} style={{...inputStyle, flex:1}} />
         </div>
         <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password" style={{...inputStyle, marginTop:12}} />
@@ -327,7 +327,7 @@ function PhoneLoginScreen({ onBack, onSuccess, showToast }) {
 // ── Main App ──────────────────────────────────────────────────
 function SplashScreen() {
   return (
-    <div style={{minHeight:"100vh",background:"#0A0A0A",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}>
+    <div style={{minHeight:"100vh",background:"#ffffff",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="160" height="200">
         <defs>
           <clipPath id="rounded">
@@ -382,12 +382,12 @@ function PostApp() {
   if(screen==="profile-setup") return <ProfileSetupScreen token={newToken} onDone={handleProfileSetupDone} showToast={showToast} />;
   if(screen==="phone-signup") return <PhoneSignupScreen onBack={()=>setScreen("login")} onSuccess={handlePhoneSuccess} showToast={showToast} />;
   if(screen==="phone-login") return <PhoneLoginScreen onBack={()=>setScreen("login")} onSuccess={(tok)=>{localStorage.setItem("token",tok);setToken(tok);}} showToast={showToast} />;
-  if(!user) return <div style={{minHeight:"100vh",background:"#000",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24}}>Loading...</div>;
+  if(!user) return <div style={{minHeight:"100vh",background:"#000",display:"flex",alignItems:"center",justifyContent:"center",color:"#111111",fontSize:24}}>Loading...</div>;
 
   return (
     <div style={{minHeight:"100vh",background:COLORS.dark,color:COLORS.text,paddingBottom:80}}>
       <Toast toast={toast} />
-      <div style={{position:"sticky",top:0,background:"#050505",borderBottom:"1px solid #222",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:50}}>
+      <div style={{position:"sticky",top:0,background:"#050505",borderBottom:"1px solid #e0e0e0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:50}}>
         <span style={{fontSize:28,fontWeight:900,letterSpacing:6,color:COLORS.yellow}}>POST</span>
         <button onClick={handleLogout} style={{color:COLORS.muted,fontSize:12,background:"none",border:"none",cursor:"pointer"}}>Logout</button>
       </div>
@@ -396,7 +396,7 @@ function PostApp() {
       {tab==="friends"&&<FriendsTab token={token} user={user} showToast={showToast} />}
       {tab==="messages"&&<MessagesTab token={token} user={user} showToast={showToast} />}
       {tab==="profile"&&<ProfileTab token={token} user={user} setUser={setUser} showToast={showToast} />}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#050505",borderTop:"1px solid #222",display:"flex",justifyContent:"space-around",padding:"10px 0",zIndex:50}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#050505",borderTop:"1px solid #e0e0e0",display:"flex",justifyContent:"space-around",padding:"10px 0",zIndex:50}}>
         {[["home","🏠"],["discover","🔍"],["friends","👥"],["messages","💬"],["profile","👤"]].map(([id,icon])=>(
           <button key={id} onClick={()=>setTab(id)} style={{fontSize:24,background:"none",border:"none",cursor:"pointer",opacity:tab===id?1:0.4,transform:tab===id?"scale(1.2)":"scale(1)",transition:"all 0.2s"}}>{icon}</button>
         ))}
@@ -410,14 +410,14 @@ function LoginScreen({ onLogin, onGoSignup, onGoPhone, onGoPhoneSignup, toast })
   return (
     <div style={{minHeight:"100vh",background:COLORS.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <Toast toast={toast} />
-      <div style={{background:"#111",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
+      <div style={{background:"#ffffff",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{fontSize:56,fontWeight:900,color:COLORS.yellow,letterSpacing:8}}>POST</div>
 
         </div>
         {!showLogin ? <>
           <button onClick={onGoPhoneSignup} style={{...btnStyle,marginBottom:10}}>Create Account with Phone</button>
-          <button onClick={onGoSignup} style={{...btnStyle,background:"#1a1a1a",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`}}>Create Account with Email</button>
+          <button onClick={onGoSignup} style={{...btnStyle,background:"#f5f5f5",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`}}>Create Account with Email</button>
           <div style={{textAlign:"center",marginTop:20,color:COLORS.muted,fontSize:14}}>
             Already have an account? <span onClick={()=>setShowLogin(true)} style={{color:COLORS.yellow,cursor:"pointer",fontWeight:700}}>Log in</span>
           </div>
@@ -425,7 +425,7 @@ function LoginScreen({ onLogin, onGoSignup, onGoPhone, onGoPhoneSignup, toast })
           <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" type="email" style={inputStyle} />
           <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password" style={{...inputStyle,marginTop:12}} onKeyDown={e=>e.key==="Enter"&&onLogin(email,password)} />
           <button onClick={()=>onLogin(email,password)} style={{...btnStyle,marginTop:20}}>LOG IN →</button>
-          <button onClick={onGoPhone} style={{...btnStyle,marginTop:10,background:"#1a1a1a",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`}}>Log in with Phone</button>
+          <button onClick={onGoPhone} style={{...btnStyle,marginTop:10,background:"#f5f5f5",color:COLORS.yellow,border:`1px solid ${COLORS.yellow}`}}>Log in with Phone</button>
           <div style={{textAlign:"center",marginTop:16,color:COLORS.muted,fontSize:14}}>
             <span onClick={()=>setShowLogin(false)} style={{color:COLORS.yellow,cursor:"pointer",fontWeight:700}}>← Back</span>
           </div>
@@ -457,7 +457,7 @@ function ProfileSetupScreen({ token, onDone, showToast }) {
   };
   return (
     <div style={{minHeight:"100vh",background:COLORS.dark,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#111",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
+      <div style={{background:"#ffffff",border:`1px solid ${COLORS.yellow}`,borderRadius:24,padding:32,width:"100%",maxWidth:400}}>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:40,fontWeight:900,color:COLORS.yellow}}>Profile Setup 🎨</div>
           <div style={{color:COLORS.muted,fontSize:14,marginTop:8}}>Apna chehra dikhao duniya ko!</div>
@@ -493,7 +493,7 @@ function AccountCreatedScreen({ onContinue }) {
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:80,marginBottom:16}}>🎉</div>
         <div style={{fontSize:32,fontWeight:900,color:COLORS.yellow,letterSpacing:2,marginBottom:8}}>Welcome!</div>
-        <div style={{color:"#fff",fontSize:18,fontWeight:700,marginBottom:8}}>Account Created Successfully</div>
+        <div style={{color:"#111111",fontSize:18,fontWeight:700,marginBottom:8}}>Account Created Successfully</div>
         <div style={{color:COLORS.muted,fontSize:14}}>POST World mein aapka swagat hai 🌍</div>
         <div style={{marginTop:32,display:"flex",justifyContent:"center",gap:8}}>
           {[COLORS.yellow,COLORS.green,COLORS.red,COLORS.blue].map((c,i)=>(
@@ -608,7 +608,7 @@ function BentoPostCard({ post, user, onLike, onDelete, onComment, isLarge }) {
         <span>{post.comments?.length || 0} comments</span>
       </div>
 
-      <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #222", paddingTop: "12px", justifyContent: "space-around" }}>
+      <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #e0e0e0", paddingTop: "12px", justifyContent: "space-around" }}>
         <div style={{ display: "flex", gap: "4px" }}>
           {ACCENTS.map(c => (
             <button key={c} onClick={() => onLike(post.id, c)} style={{ width: "24px", height: "24px", borderRadius: "50%", background: c, border: myLike?.color === c ? `2px solid ${COLORS.text}` : "2px solid transparent", cursor: "pointer" }} />
@@ -620,7 +620,7 @@ function BentoPostCard({ post, user, onLike, onDelete, onComment, isLarge }) {
       </div>
 
       {showComments && (
-        <div style={{ borderTop: "1px solid #222", paddingTop: "12px" }}>
+        <div style={{ borderTop: "1px solid #e0e0e0", paddingTop: "12px" }}>
           <div style={{ maxHeight: "200px", overflowY: "auto", marginBottom: "8px" }}>
             {post.comments?.map((c, i) => (
               <div key={i} style={{ fontSize: "12px", padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}>
@@ -700,7 +700,7 @@ function DiscoverTab({ token, user, showToast }) {
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Search people..." style={{...inputStyle,marginBottom:16}} />
       {loading&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Loading...</div>}
       {users.map(u=>(
-        <div key={u.id} style={{background:COLORS.card,border:"1px solid #222",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
+        <div key={u.id} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:44,height:44,borderRadius:14,background:u.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
             {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:u.avatar_letter}
           </div>
@@ -723,17 +723,17 @@ function FriendsTab({ token, user, showToast }) {
       {data.pending_incoming.length>0&&<>
         <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,fontSize:13,letterSpacing:2}}>REQUESTS 📬</div>
         {data.pending_incoming.map(r=>(
-          <div key={r.id} style={{background:COLORS.card,border:"1px solid #333",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+          <div key={r.id} style={{background:COLORS.card,border:"1px solid #ddd",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
             <div style={{flex:1,fontWeight:600,fontSize:14}}>{r.from_id}</div>
             <button onClick={()=>accept(r.from_id)} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12,marginRight:6}}>Accept</button>
-            <button onClick={()=>decline(r.from_id)} style={{background:"#333",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Decline</button>
+            <button onClick={()=>decline(r.from_id)} style={{background:"#e0e0e0",color:"#111111",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Decline</button>
           </div>
         ))}
       </>}
       <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,marginTop:16,fontSize:13,letterSpacing:2}}>FRIENDS 🤝</div>
       {data.friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:30}}>No friends yet. Start discovering! 🔍</div>}
       {data.friends.map(f=>(
-        <div key={f.id} style={{background:COLORS.card,border:"1px solid #222",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+        <div key={f.id} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:40,height:40,borderRadius:12,background:f.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,overflow:"hidden"}}>
             {f.avatar_photo?<img src={f.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:f.avatar_letter}
           </div>
@@ -759,7 +759,7 @@ function MessagesTab({ token, user, showToast }) {
   };
   if(selected) return (
     <div style={{maxWidth:600,margin:"0 auto",display:"flex",flexDirection:"column",height:"calc(100vh - 130px)"}}>
-      <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid #222"}}>
+      <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid #e0e0e0"}}>
         <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:COLORS.yellow,cursor:"pointer",fontSize:20}}>←</button>
         <div style={{width:36,height:36,borderRadius:10,background:selected.avatar_bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900}}>{selected.avatar_letter}</div>
         <div style={{fontWeight:700}}>{selected.name}</div>
@@ -772,7 +772,7 @@ function MessagesTab({ token, user, showToast }) {
         ))}
         <div ref={msgEnd} />
       </div>
-      <div style={{padding:"10px 16px",borderTop:"1px solid #222",display:"flex",gap:10}}>
+      <div style={{padding:"10px 16px",borderTop:"1px solid #e0e0e0",display:"flex",gap:10}}>
         <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMsg()} placeholder="Message..." style={{...inputStyle,flex:1}} />
         <button onClick={sendMsg} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:12,padding:"10px 18px",fontWeight:700,cursor:"pointer"}}>→</button>
       </div>
@@ -783,7 +783,7 @@ function MessagesTab({ token, user, showToast }) {
       <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:12,fontSize:13,letterSpacing:2}}>MESSAGES 💬</div>
       {friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:40}}>Add friends to start chatting!</div>}
       {friends.map(f=>(
-        <div key={f.id} onClick={()=>setSelected(f)} style={{background:COLORS.card,border:"1px solid #222",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+        <div key={f.id} onClick={()=>setSelected(f)} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
           <div style={{width:44,height:44,borderRadius:14,background:f.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20}}>{f.avatar_letter}</div>
           <div><div style={{fontWeight:700}}>{f.name}</div><div style={{color:COLORS.muted,fontSize:12}}>{f.handle}</div></div>
         </div>
@@ -797,7 +797,7 @@ function ProfileTab({ token, user, setUser, showToast }) {
   const save=async()=>{ try{const u=await api("/profile","PATCH",{name,location,about,avatar_bg:avatarBg},token);setUser(u);setEditing(false);showToast("Profile updated! ✓",COLORS.green);}catch(e){showToast(e.message,COLORS.red);} };
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
-      <div style={{background:COLORS.card,border:"1px solid #222",borderRadius:20,padding:24,textAlign:"center"}}>
+      <div style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:20,padding:24,textAlign:"center"}}>
         <div style={{width:80,height:80,borderRadius:24,background:user.avatar_bg||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:36,margin:"0 auto 16px",overflow:"hidden"}}>
           {user.avatar_photo?<img src={user.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:user.avatar_letter}
         </div>
@@ -816,7 +816,7 @@ function ProfileTab({ token, user, setUser, showToast }) {
               {ACCENTS.map(c=><button key={c} onClick={()=>setAvatarBg(c)} style={{width:36,height:36,borderRadius:10,background:c,border:avatarBg===c?"3px solid white":"3px solid transparent",cursor:"pointer"}} />)}
             </div>
             <button onClick={save} style={btnStyle}>Save ✓</button>
-            <button onClick={()=>setEditing(false)} style={{...btnStyle,background:"#333",color:"#fff",marginTop:8}}>Cancel</button>
+            <button onClick={()=>setEditing(false)} style={{...btnStyle,background:"#e0e0e0",color:"#111111",marginTop:8}}>Cancel</button>
           </div>
         )}
       </div>
