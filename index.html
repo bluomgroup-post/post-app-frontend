@@ -1170,19 +1170,22 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
   const [loading,setLoading]=useState(true);
   const [friendIds,setFriendIds]=useState(new Set());
   const [requestedIds,setRequestedIds]=useState(new Set());   // outgoing pending
-  const [incomingIds,setIncomingIds]=useState(new Set());     // incoming pending — show "Respond"
+  const [incomingIds,setIncomingIds]=useState(new Set());     // incoming pending — show "Accept"
   const [followingIds,setFollowingIds]=useState(new Set());
   const [actionLoading,setActionLoading]=useState({});
+  const [socialLoaded,setSocialLoaded]=useState(false); // gate: disable buttons until state is known
 
   const loadSocial=()=>{
-    api("/friends","GET",null,token).then(d=>{
+    setSocialLoaded(false);
+    Promise.all([
+      api("/friends","GET",null,token),
+      api("/auth/me","GET",null,token),
+    ]).then(([d,me])=>{
       setFriendIds(new Set((d.friends||[]).map(f=>f.id)));
       setRequestedIds(new Set((d.pending_outgoing||[]).map(r=>r.to_id)));
       setIncomingIds(new Set((d.pending_incoming||[]).map(r=>r.from_id)));
-    }).catch(()=>{});
-    api("/auth/me","GET",null,token).then(me=>{
       setFollowingIds(new Set(me.following||[]));
-    }).catch(()=>{});
+    }).catch(()=>{}).finally(()=>setSocialLoaded(true));
   };
   useEffect(()=>{ loadSocial(); },[]);
 
@@ -1234,8 +1237,8 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
         const isRequested = requestedIds.has(u.id);
         const hasIncoming = incomingIds.has(u.id);
         const isFollowing = followingIds.has(u.id);
-        const reqLoading  = !!actionLoading[u.id+"_req"];
-        const folLoading  = !!actionLoading[u.id+"_follow"];
+        const reqLoading  = !socialLoaded || !!actionLoading[u.id+"_req"];
+        const folLoading  = !socialLoaded || !!actionLoading[u.id+"_follow"];
         return (
           <div key={u.id} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
             {/* Clickable avatar + info → open profile */}
