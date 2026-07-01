@@ -1,7 +1,0 @@
-services:
-    - type: web
-      name: post-app-frontend
-      env: static
-      buildCommand: echo "no build needed"
-      staticPublishPath: .
-  
