@@ -529,11 +529,11 @@ function PostApp() {
       {tab==="invite"&&<InviteFriendsScreen user={user} showToast={showToast} onBack={()=>setTab("home")} />}
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:"var(--nav-bg)",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-around",alignItems:"center",padding:"8px 0 10px",zIndex:50}}>
         {[
-          {id:"home",label:"Home",svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill={active?"#FFD600":"none"} stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>},
-          {id:"discover",label:"Search",svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active?"#FFD600":"#999"} strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>},
-          {id:"friends",label:"Friends",svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>},
-          {id:"messages",label:"Messages",svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill={active?"#FFD600":"none"} stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>},
-          {id:"profile",label:"Profile",svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill={active?"#FFD600":"none"} stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+          {id:"home",label:t("home"),svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill={active?"#FFD600":"none"} stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>},
+          {id:"discover",label:t("search"),svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active?"#FFD600":"#999"} strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>},
+          {id:"friends",label:t("friends"),svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>},
+          {id:"messages",label:t("messages"),svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill={active?"#FFD600":"none"} stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>},
+          {id:"profile",label:t("profile"),svg:(active)=><svg width="20" height="20" viewBox="0 0 24 24" fill={active?"#FFD600":"none"} stroke={active?"#FFD600":"#999"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
         ].map(({id,label,svg})=>(
           <button key={id} onClick={()=>setTab(id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,background:"none",border:"none",cursor:"pointer",padding:"4px 12px",transition:"transform 0.15s",transform:tab===id?"scale(1.1)":"scale(1)"}}>
             {svg(tab===id)}
@@ -755,7 +755,7 @@ function BentoPostCard({ post, user, onLike, onDelete, onComment, isLarge }) {
           ))}
         </div>
         <button onClick={() => setShowComments(!showComments)} style={{ background: "none", border: "none", color: COLORS.muted, cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}>
-          💬 Comment
+          💬 {t("comment")}
         </button>
       </div>
 
@@ -814,8 +814,8 @@ function ComposeModal({ token, user, onClose, onPost, showToast }) {
           </div>
         )}
 
-        <textarea value={text} onChange={e => setText(e.target.value)} placeholder="What's on your mind? 🌍" style={{ ...inputStyle, height: "120px", resize: "none", marginBottom: "12px" }} />
-        <input value={location} onChange={e => setLocation(e.target.value)} placeholder="📍 Location (optional)" style={{ ...inputStyle, marginBottom: "12px", fontSize: "13px" }} />
+        <textarea value={text} onChange={e => setText(e.target.value)} placeholder={t("writeHere")} style={{ ...inputStyle, height: "120px", resize: "none", marginBottom: "12px" }} />
+        <input value={location} onChange={e => setLocation(e.target.value)} placeholder={t("location")} style={{ ...inputStyle, marginBottom: "12px", fontSize: "13px" }} />
 
         <div style={{ marginBottom: "14px" }}>
           <div style={{ fontSize: "11px", color: COLORS.muted, marginBottom: "8px", fontWeight: "600", letterSpacing: 1 }}>POST COLOUR</div>
@@ -829,7 +829,7 @@ function ComposeModal({ token, user, onClose, onPost, showToast }) {
         </div>
 
         <button onClick={handlePost} disabled={loading} style={{ ...btnStyle, opacity: loading ? 0.7 : 1 }}>
-          {loading ? "Posting..." : "SHARE GLOBALLY 🌍"}
+          {loading ? t("posting") : t("shareGlobally")}
         </button>
       </div>
     </div>
@@ -925,7 +925,7 @@ function MessagesTab({ token, user, showToast }) {
   );
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
-      <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:12,fontSize:13,letterSpacing:2}}>MESSAGES 💬</div>
+      <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:12,fontSize:13,letterSpacing:2}}>{t("messages").toUpperCase()} 💬</div>
       {friends.length===0&&<div style={{color:COLORS.muted,textAlign:"center",padding:40}}>Add friends to start chatting!</div>}
       {friends.map(f=>(
         <div key={f.id} onClick={()=>setSelected(f)} style={{background:COLORS.card,border:"1px solid #e0e0e0",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
@@ -1268,14 +1268,14 @@ function SettingsScreen({ token, user, setUser, showToast, onBack, onLoggedOut }
     <div style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px 40px", background:"var(--bg)", minHeight:"100vh" }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
         <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", fontSize:20 }}>←</button>
-        <div style={{ fontSize:22, fontWeight:900, color:"var(--text)" }}>Settings</div>
+        <div style={{ fontSize:22, fontWeight:900, color:"var(--text)" }}>{t("settings")}</div>
       </div>
 
-      <SettingsSection title="Privacy">
+      <SettingsSection title={t("privacy")}>
         <SettingRow label="Private Account" sub="Only approved followers can see your posts" right={<Toggle on={isPrivate} onChange={togglePrivate} />} />
       </SettingsSection>
 
-      <SettingsSection title="Security">
+      <SettingsSection title={t("security")}>
         <div style={{ padding:"14px 0" }} onClick={()=>setShowPassword(true)}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }}>
             <div style={{ fontSize:14, fontWeight:700 }}>Change Password</div>
@@ -1292,17 +1292,17 @@ function SettingsScreen({ token, user, setUser, showToast, onBack, onLoggedOut }
         )}
       </SettingsSection>
 
-      <SettingsSection title="Language">
+      <SettingsSection title={t("language")}>
         <select value={language} onChange={e=>changeLanguage(e.target.value)} style={{ ...inputStyle, border:"none", padding:"14px 0", cursor:"pointer" }}>
           {LANGUAGES.map(([code,name])=><option key={code} value={code}>{name}</option>)}
         </select>
       </SettingsSection>
 
-      <SettingsSection title="Theme">
-        <SettingRow label="Dark Mode" sub="Switch between light and dark appearance" right={<Toggle on={theme==="dark"} onChange={toggleTheme} />} />
+      <SettingsSection title={t("darkMode")}>
+        <SettingRow label={t("darkMode")} sub="Switch between light and dark appearance" right={<Toggle on={theme==="dark"} onChange={toggleTheme} />} />
       </SettingsSection>
 
-      <SettingsSection title="Notifications">
+      <SettingsSection title={t("notifications")}>
         <SettingRow label="Likes" right={<Toggle on={!!notifPrefs.likes} onChange={v=>toggleNotif("likes",v)} />} />
         <SettingRow label="Comments" right={<Toggle on={!!notifPrefs.comments} onChange={v=>toggleNotif("comments",v)} />} />
         <SettingRow label="Friend Requests" right={<Toggle on={!!notifPrefs.friend_requests} onChange={v=>toggleNotif("friend_requests",v)} />} />
@@ -1370,7 +1370,7 @@ function SettingsScreen({ token, user, setUser, showToast, onBack, onLoggedOut }
         )}
       </SettingsSection>
 
-      <button onClick={onLoggedOut} style={{ ...btnStyle, background:"none", border:"1.5px solid #ddd", color:COLORS.muted, marginTop:4 }}>Log Out</button>
+      <button onClick={onLoggedOut} style={{ ...btnStyle, background:"none", border:"1.5px solid var(--border)", color:"var(--muted)", marginTop:4 }}>{t("logout")}</button>
     </div>
   );
 }
@@ -1422,7 +1422,7 @@ function InviteFriendsScreen({ user, showToast, onBack }) {
     <div style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px 40px" }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
         <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", fontSize:20 }}>←</button>
-        <div style={{ fontSize:22, fontWeight:900, color:"var(--text)" }}>Invite Friends</div>
+        <div style={{ fontSize:22, fontWeight:900, color:"var(--text)" }}>{t("invite")}</div>
       </div>
 
       <div style={{ textAlign:"center", marginBottom:24 }}>
