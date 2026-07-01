@@ -1,9 +1,11 @@
 services:
   - type: web
     name: post-app-frontend
-    env: static
+    env: node
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    startCommand: npm run start
     envVars:
       - key: VITE_API_URL
         sync: false
+      - key: PORT
+        value: 3000
