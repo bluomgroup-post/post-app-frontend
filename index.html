@@ -496,7 +496,8 @@ function PostApp() {
       if(identifier.includes("@")){
         d=await api("/auth/login","POST",{email:identifier,password});
       } else {
-        d=await api("/auth/phone-login","POST",{phone:identifier,password});
+        const phoneNum = identifier.startsWith('+') ? identifier : `+91${identifier}`;
+        d=await api("/auth/phone-login","POST",{phone:phoneNum,password});
       }
       localStorage.setItem("token",d.token); setToken(d.token);
     }catch(e){showToast(e.message,COLORS.red);}
@@ -570,7 +571,9 @@ function ForgotPasswordScreen({ onBack, showToast }) {
     if (!identifier.trim()) { showToast("Enter your email or phone", COLORS.red); return; }
     setLoading(true);
     try {
-      const d = await api("/auth/forgot-password-init", "POST", { identifier: identifier.trim() });
+      const raw = identifier.trim();
+      const finalId = !raw.includes("@") && !raw.startsWith("+") ? `+91${raw}` : raw;
+      const d = await api("/auth/forgot-password-init", "POST", { identifier: finalId });
       setDemoOtp(d.demo_otp);
       showToast("OTP sent! Check your " + (d.method === "email" ? "email" : "phone"), COLORS.green);
       setStep("otp");
@@ -582,7 +585,9 @@ function ForgotPasswordScreen({ onBack, showToast }) {
     if (!otp.trim()) { showToast("Enter the OTP", COLORS.red); return; }
     setLoading(true);
     try {
-      await api("/auth/forgot-password-verify", "POST", { identifier: identifier.trim(), otp: otp.trim() });
+      const raw2 = identifier.trim();
+      const finalId2 = !raw2.includes("@") && !raw2.startsWith("+") ? `+91${raw2}` : raw2;
+      await api("/auth/forgot-password-verify", "POST", { identifier: finalId2, otp: otp.trim() });
       showToast("OTP verified ✓", COLORS.green);
       setStep("reset");
     } catch(e) { showToast(e.message, COLORS.red); }
@@ -594,7 +599,9 @@ function ForgotPasswordScreen({ onBack, showToast }) {
     if (newPass !== confirmPass) { showToast("Passwords don't match", COLORS.red); return; }
     setLoading(true);
     try {
-      await api("/auth/forgot-password-reset", "POST", { identifier: identifier.trim(), otp: otp.trim(), new_password: newPass });
+      const raw3 = identifier.trim();
+      const finalId3 = !raw3.includes("@") && !raw3.startsWith("+") ? `+91${raw3}` : raw3;
+      await api("/auth/forgot-password-reset", "POST", { identifier: finalId3, otp: otp.trim(), new_password: newPass });
       showToast("Password reset! Please log in.", COLORS.green);
       setStep("done");
     } catch(e) { showToast(e.message, COLORS.red); }
