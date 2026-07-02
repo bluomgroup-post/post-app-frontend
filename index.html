@@ -1632,7 +1632,7 @@ function FriendsTab({ token, user, showToast, onViewProfile }) {
       }
 
       {/* ── FOLLOW REQUESTS (private account owners) ── */}
-      {user.is_private&&followReqData.incoming&&followReqData.incoming.length>0&&<>
+      {followReqData.incoming&&followReqData.incoming.length>0&&<>
         <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,marginTop:16,fontSize:13,letterSpacing:2}}>FOLLOW REQUESTS 🔒</div>
         {followReqData.incoming.map(r=>{
           const fu=r.from_user||{};
