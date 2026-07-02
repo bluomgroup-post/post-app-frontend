@@ -1069,6 +1069,10 @@ function BentoPostCard({ post, user, onLike, onDelete, onComment, isLarge, onVie
 
       <div style={{ fontSize: isLarge ? "16px" : "14px", lineHeight: "1.6", color: COLORS.text, flexGrow: 1 }}>{post.content}</div>
 
+      {post.photo_url && (
+        <img src={post.photo_url} style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 12, marginTop: 4 }} />
+      )}
+
       <div style={{ height: "4px", background: post.accent || COLORS.yellow, borderRadius: "2px", width: "40px" }} />
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: COLORS.muted }}>
@@ -1113,11 +1117,22 @@ function ComposeModal({ token, user, onClose, onPost, showToast }) {
   const [accent, setAccent] = useState(COLORS.yellow);
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const photoRef = useRef(null);
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { setPhotoUrl(ev.target.result); setPhotoPreview(ev.target.result); };
+    reader.readAsDataURL(file);
+  };
 
   const handlePost = async () => {
-    if (!text.trim()) { showToast("Write something!", COLORS.red); return; }
+    if (!text.trim() && !photoUrl) { showToast("Write something!", COLORS.red); return; }
     setLoading(true);
-    try { await api("/posts", "POST", { content: text, accent, location }, token); onPost(); }
+    try { await api("/posts", "POST", { content: text, accent, location, photo_url: photoUrl||undefined }, token); onPost(); }
     catch (e) { showToast(e.message, COLORS.red); }
     setLoading(false);
   };
@@ -1144,6 +1159,17 @@ function ComposeModal({ token, user, onClose, onPost, showToast }) {
 
         <textarea value={text} onChange={e => setText(e.target.value)} placeholder={t("writeHere")} style={{ ...inputStyle, height: "120px", resize: "none", marginBottom: "12px" }} />
         <input value={location} onChange={e => setLocation(e.target.value)} placeholder={t("location")} style={{ ...inputStyle, marginBottom: "12px", fontSize: "13px" }} />
+
+        <div style={{ marginBottom: "12px" }}>
+          <input ref={photoRef} type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: "none" }} />
+          {photoPreview
+            ? <div style={{ position: "relative" }}>
+                <img src={photoPreview} style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 12 }} />
+                <button onClick={() => { setPhotoUrl(null); setPhotoPreview(null); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: 24, height: 24, cursor: "pointer", fontSize: 14 }}>✕</button>
+              </div>
+            : <button onClick={() => photoRef.current.click()} style={{ background: "none", border: `1.5px dashed ${COLORS.muted}`, borderRadius: 10, padding: "8px 14px", color: COLORS.muted, cursor: "pointer", fontSize: 13 }}>📷 Add Photo</button>
+          }
+        </div>
 
         <div style={{ marginBottom: "14px" }}>
           <div style={{ fontSize: "11px", color: COLORS.muted, marginBottom: "8px", fontWeight: "600", letterSpacing: 1 }}>POST COLOUR</div>
@@ -1431,6 +1457,10 @@ function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onG
         {/* Name / handle / category */}
         <div style={{fontWeight:900,fontSize:20,color:"var(--text)"}}>{profile.name}</div>
         <div style={{color:"var(--muted)",fontSize:14,marginTop:2}}>@{profile.username||(profile.handle||"").replace("@","")}</div>
+        {profile.is_mutual
+          ? <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"#e8f5e9",color:"#2e7d32",fontSize:12,fontWeight:600,borderRadius:20,padding:"3px 10px",marginTop:5}}>🤝 Mutual Follow</div>
+          : profile.is_following_you && <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"#f5f5f5",color:"#888",fontSize:12,fontWeight:600,borderRadius:20,padding:"3px 10px",marginTop:5}}>Follows you</div>
+        }
         {profile.category&&<div style={{display:"inline-block",background:"#f0f0f0",color:"#444",fontSize:12,fontWeight:600,borderRadius:20,padding:"3px 12px",marginTop:6}}>{profile.category}</div>}
         {profile.about&&<div style={{fontSize:14,marginTop:8,lineHeight:1.55,color:"var(--text)"}}>{profile.about}</div>}
         <div style={{display:"flex",gap:14,marginTop:8,flexWrap:"wrap"}}>
