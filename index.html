@@ -1498,11 +1498,11 @@ function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onG
           : profile.is_following_you && <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"#f5f5f5",color:"#888",fontSize:12,fontWeight:600,borderRadius:20,padding:"3px 10px",marginTop:5}}>Follows you</div>
         }
         {profile.category&&<div style={{display:"inline-block",background:"#f0f0f0",color:"#444",fontSize:12,fontWeight:600,borderRadius:20,padding:"3px 12px",marginTop:6}}>{profile.category}</div>}
-        {profile.about&&<div style={{fontSize:14,marginTop:8,lineHeight:1.55,color:"var(--text)"}}>{profile.about}</div>}
-        <div style={{display:"flex",gap:14,marginTop:8,flexWrap:"wrap"}}>
+        {!profile.is_private_locked&&profile.about&&<div style={{fontSize:14,marginTop:8,lineHeight:1.55,color:"var(--text)"}}>{profile.about}</div>}
+        {!profile.is_private_locked&&<div style={{display:"flex",gap:14,marginTop:8,flexWrap:"wrap"}}>
           {profile.location&&<span style={{color:"var(--muted)",fontSize:13}}>📍 {profile.location}</span>}
           {profile.website&&<a href={profile.website.startsWith("http")?profile.website:`https://${profile.website}`} target="_blank" style={{color:COLORS.blue,fontSize:13,textDecoration:"none"}}>🔗 {profile.website.replace(/^https?:\/\//,"")}</a>}
-        </div>
+        </div>}
 
         {/* Stats */}
         <div style={{display:"flex",borderTop:"1px solid var(--border)",borderBottom:"1px solid var(--border)",margin:"14px 0",padding:"12px 0"}}>
@@ -1514,24 +1514,38 @@ function UserProfileScreen({ userId, token, currentUser, onClose, showToast, onG
           ))}
         </div>
 
-        {/* Posts */}
-        <div style={{fontWeight:700,color:COLORS.yellow,fontSize:13,letterSpacing:2,marginBottom:12}}>POSTS</div>
-        {posts.length===0
-          ? <div style={{textAlign:"center",color:"var(--muted)",padding:30}}>No posts yet 🌱</div>
-          : <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {posts.map(post=>(
-                <div key={post.id} style={{background:"var(--card-bg)",border:`2px solid ${post.accent||COLORS.yellow}`,borderRadius:16,padding:"14px 16px"}}>
-                  <div style={{fontSize:14,lineHeight:1.6,color:"var(--text)"}}>{post.content}</div>
-                  {post.location&&<div style={{color:"var(--muted)",fontSize:12,marginTop:4}}>📍 {post.location}</div>}
-                  <div style={{display:"flex",gap:16,marginTop:8,color:"var(--muted)",fontSize:12}}>
-                    <span>❤️ {post.likes?.length||0}</span>
-                    <span>💬 {post.comments?.length||0}</span>
-                    <span>👁 {post.views?.length||0}</span>
-                  </div>
-                </div>
-              ))}
+        {/* Posts — hidden for private locked accounts */}
+        {profile.is_private_locked ? (
+          <div style={{textAlign:"center",padding:"40px 20px",borderTop:"1px solid var(--border)",marginTop:8}}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{marginBottom:12}}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div style={{fontWeight:700,fontSize:15,color:"var(--text)",marginBottom:6}}>This account is private</div>
+            <div style={{color:"var(--muted)",fontSize:13,lineHeight:1.5}}>
+              {profile.has_pending_request
+                ? "Follow request sent — waiting for approval"
+                : "Follow this account to see their posts"}
             </div>
-        }
+          </div>
+        ) : (
+          <>
+            <div style={{fontWeight:700,color:COLORS.yellow,fontSize:13,letterSpacing:2,marginBottom:12}}>POSTS</div>
+            {posts.length===0
+              ? <div style={{textAlign:"center",color:"var(--muted)",padding:30}}>No posts yet 🌱</div>
+              : <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {posts.map(post=>(
+                    <div key={post.id} style={{background:"var(--card-bg)",border:`2px solid ${post.accent||COLORS.yellow}`,borderRadius:16,padding:"14px 16px"}}>
+                      <div style={{fontSize:14,lineHeight:1.6,color:"var(--text)"}}>{post.content}</div>
+                      {post.location&&<div style={{color:"var(--muted)",fontSize:12,marginTop:4}}>📍 {post.location}</div>}
+                      <div style={{display:"flex",gap:16,marginTop:8,color:"var(--muted)",fontSize:12}}>
+                        <span>❤️ {post.likes?.length||0}</span>
+                        <span>💬 {post.comments?.length||0}</span>
+                        <span>👁 {post.views?.length||0}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+            }
+          </>
+        )}
       </div>
     </div>
   );
