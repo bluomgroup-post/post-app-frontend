@@ -979,7 +979,7 @@ function HomeTab({ token, user, showToast, onViewProfile }) {
 
   const loadPosts = async () => {
     try {
-      const d = await api("/posts", "GET", null, token);
+      const d = await api("/posts?feed=true", "GET", null, token);
       setPosts(d.posts || d);
       setLoading(false);
     } catch (e) {
@@ -1021,7 +1021,7 @@ function HomeTab({ token, user, showToast, onViewProfile }) {
         {posts.length === 0 ? (
           <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px", color: COLORS.muted }}>
             <div style={{ fontSize: "48px", marginBottom: "16px" }}>🚀</div>
-            <p>No posts yet. Be the first to post!</p>
+            <p>No posts from people you follow yet.</p>
           </div>
         ) : (
           posts.map((post, idx) => (
@@ -1175,17 +1175,20 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
   const [actionLoading,setActionLoading]=useState({});
   const [socialLoaded,setSocialLoaded]=useState(false);
   const [unfollowConfirm,setUnfollowConfirm]=useState(null); // uid asking confirm before unfollow
+  const [pendingFollowIds,setPendingFollowIds]=useState(new Set());
 
   const loadSocial=()=>{
     setSocialLoaded(false);
     Promise.all([
       api("/friends","GET",null,token),
       api("/auth/me","GET",null,token),
-    ]).then(([d,me])=>{
+      api("/users/me/follow-requests","GET",null,token),
+    ]).then(([d,me,fr])=>{
       setFriendIds(new Set((d.friends||[]).map(f=>f.id)));
       setRequestedIds(new Set((d.pending_outgoing||[]).map(r=>r.to_id)));
       setIncomingIds(new Set((d.pending_incoming||[]).map(r=>r.from_id)));
       setFollowingIds(new Set(me.following||[]));
+      setPendingFollowIds(new Set((fr&&fr.outgoing||[]).map(r=>r.to_id)));
     }).catch(()=>{}).finally(()=>setSocialLoaded(true));
   };
   useEffect(()=>{ loadSocial(); },[]);
@@ -1219,7 +1222,18 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
     setActionLoading(a=>({...a,[uid+"_req"]:false}));
   };
 
-  const toggleFollow=async(uid, isFollowing)=>{
+  const cancelFollowRequest=async(uid)=>{
+    setActionLoading(a=>({...a,[uid+"_follow"]:true}));
+    try{
+      const res=await api("/users/"+uid+"/follow-request/cancel","POST",null,token);
+      setPendingFollowIds(s=>{const n=new Set(s);n.delete(uid);return n;});
+      showToast("Request cancelled",COLORS.muted);
+    }catch(e){showToast(e.message,COLORS.red);}
+    setActionLoading(a=>({...a,[uid+"_follow"]:false}));
+  };
+
+  const toggleFollow=async(uid, isFollowing, isPending)=>{
+    if(isPending){ cancelFollowRequest(uid); return; }
     if(isFollowing){
       // First tap on "Following" → show "Unfollow?" confirm; second tap → actually unfollow
       if(unfollowConfirm===uid){
@@ -1239,9 +1253,14 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
     setUnfollowConfirm(null);
     setActionLoading(a=>({...a,[uid+"_follow"]:true}));
     try{
-      await api(`/users/${uid}/follow`,"POST",null,token);
-      setFollowingIds(s=>new Set([...s,uid]));
-      showToast("Following! 👍",COLORS.blue);
+      const fres=await api("/users/"+uid+"/follow","POST",null,token);
+      if(fres&&fres.pending){
+        setPendingFollowIds(s=>new Set([...s,uid]));
+        showToast("Follow request sent 📬",COLORS.yellow);
+      } else {
+        setFollowingIds(s=>new Set([...s,uid]));
+        showToast("Following! 👍",COLORS.blue);
+      }
     }catch(e){showToast(e.message,COLORS.red);}
     setActionLoading(a=>({...a,[uid+"_follow"]:false}));
   };
@@ -1251,21 +1270,29 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Search people..." style={{...inputStyle,marginBottom:16}} />
       {loading&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Loading...</div>}
       {users.map(u=>{
-        const isFriend    = friendIds.has(u.id);
-        const isRequested = requestedIds.has(u.id);
-        const hasIncoming = incomingIds.has(u.id);
-        const isFollowing = followingIds.has(u.id);
-        const reqLoading  = !socialLoaded || !!actionLoading[u.id+"_req"];
-        const folLoading  = !socialLoaded || !!actionLoading[u.id+"_follow"];
+        const isFriend      = friendIds.has(u.id);
+        const isRequested   = requestedIds.has(u.id);
+        const hasIncoming   = incomingIds.has(u.id);
+        const isFollowing   = followingIds.has(u.id);
+        const isPending     = pendingFollowIds.has(u.id);
+        const isOrg         = u.account_type==="organisation";
+        const isBadgeVerified = !!u.is_badge_verified;
+        const noConnect     = isOrg||isBadgeVerified;
+        const reqLoading    = !socialLoaded || !!actionLoading[u.id+"_req"];
+        const folLoading    = !socialLoaded || !!actionLoading[u.id+"_follow"];
         return (
           <div key={u.id} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:16,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
             {/* Clickable avatar + info → open profile */}
             <div onClick={()=>onViewProfile&&onViewProfile(u.id)} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer",minWidth:0}}>
-              <div style={{width:44,height:44,borderRadius:14,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,flexShrink:0,overflow:"hidden"}}>
-                {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:u.avatar_letter}
+              <div style={{position:"relative",flexShrink:0}}>
+                <div style={{width:44,height:44,borderRadius:14,background:normalizeColor(u.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,overflow:"hidden"}}>
+                  {u.avatar_photo?<img src={u.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:u.avatar_letter}
+                </div>
+                {isBadgeVerified&&<span style={{position:"absolute",bottom:-3,right:-4,fontSize:13}} title="Verified">✅</span>}
+                {isOrg&&!isBadgeVerified&&<span style={{position:"absolute",bottom:-3,right:-4,fontSize:12}} title="Organisation">🏢</span>}
               </div>
               <div style={{minWidth:0}}>
-                <div style={{fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
+                <div style={{fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}{u.is_private&&<span style={{fontSize:10,color:"var(--muted)",marginLeft:4}}>🔒</span>}</div>
                 <div style={{color:"var(--muted)",fontSize:12}}>{u.handle}{u.location?` • ${u.location}`:""}</div>
               </div>
             </div>
@@ -1273,25 +1300,24 @@ function DiscoverTab({ token, user, showToast, onViewProfile }) {
             <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
               {/* Follow / Unfollow (tap Following → Unfollow? confirm, tap again → confirm) */}
               <button
-                onClick={()=>toggleFollow(u.id, isFollowing)}
+                onClick={()=>toggleFollow(u.id,isFollowing,isPending)}
                 disabled={folLoading}
                 style={{
-                  background: unfollowConfirm===u.id ? "#ff4d4d" : isFollowing ? "#e0e0e0" : COLORS.blue,
-                  color: unfollowConfirm===u.id ? "#fff" : isFollowing ? "#333" : "#fff",
+                  background:unfollowConfirm===u.id?"#ff4d4d":isPending?"#f5f5dc":isFollowing?"#e0e0e0":COLORS.blue,
+                  color:unfollowConfirm===u.id?"#fff":isPending?"#888":isFollowing?"#333":"#fff",
                   border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,
                   opacity:folLoading?0.6:1,transition:"all 0.15s"
                 }}>
-                {unfollowConfirm===u.id ? "Unfollow?" : isFollowing ? "Following ✓" : "Follow"}
+                {unfollowConfirm===u.id?"Unfollow?":isPending?"Requested ✓":isFollowing?"Following ✓":"Follow"}
               </button>
-              {/* Connect state machine */}
-              {isFriend
+              {!noConnect&&(isFriend
                 ? <button disabled style={{background:"#e8f5e9",color:COLORS.green,border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,fontSize:12}}>Friends ✓</button>
                 : hasIncoming
                   ? <button onClick={()=>acceptRequest(u.id)} disabled={reqLoading} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:reqLoading?0.6:1}}>Accept</button>
                   : isRequested
                     ? <button disabled style={{background:"#f5f5f5",color:"var(--muted)",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,fontSize:12}}>Requested</button>
                     : <button onClick={()=>sendRequest(u.id)} disabled={reqLoading} style={{background:COLORS.yellow,color:"#000",border:"none",borderRadius:10,padding:"8px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:reqLoading?0.6:1}}>Connect</button>
-              }
+              )}
             </div>
           </div>
         );
@@ -1449,15 +1475,19 @@ function FriendsTab({ token, user, showToast, onViewProfile }) {
   const [data,setData]=useState({friends:[],pending_incoming:[],pending_outgoing:[]});
   const [followingList,setFollowingList]=useState([]);
   const [unfollowConfirm,setUnfollowConfirm]=useState(null);
+  const [followReqData,setFollowReqData]=useState({incoming:[],outgoing:[]});
 
   const load=async()=>{
     try{
-      const [d,fl]=await Promise.all([
+      const [d,fl,fr]=await Promise.all([
         api("/friends","GET",null,token),
         api(`/users/${user.id}/following`,"GET",null,token),
+        api("/users/me/follow-requests","GET",null,token),
       ]);
       setData(d);
       setFollowingList(fl||[]);
+      if(fr) setFollowReqData(fr);
+      if(fr) setFollowReqData(fr);
     }catch(e){}
   };
   useEffect(()=>{load();},[]);
@@ -1465,6 +1495,20 @@ function FriendsTab({ token, user, showToast, onViewProfile }) {
   const accept=async(uid)=>{ try{ await api("/friends/accept","POST",{target_user_id:uid},token);showToast("Connected! 🎉",COLORS.green);load(); }catch(e){showToast(e.message,COLORS.red);} };
   const decline=async(uid)=>{ try{ await api("/friends/decline","POST",{target_user_id:uid},token);load(); }catch(e){} };
 
+  const acceptFollowReq=async(uid)=>{
+    try{
+      await api("/users/"+uid+"/follow-request/accept","POST",null,token);
+      setFollowReqData(d=>({...d,incoming:d.incoming.filter(r=>r.from_id!==uid)}));
+      showToast("Follow request accepted ✓",COLORS.green);
+    }catch(e){showToast(e.message,COLORS.red);}
+  };
+  const declineFollowReq=async(uid)=>{
+    try{
+      await api("/users/"+uid+"/follow-request/decline","POST",null,token);
+      setFollowReqData(d=>({...d,incoming:d.incoming.filter(r=>r.from_id!==uid)}));
+      showToast("Request declined",COLORS.muted);
+    }catch(e){showToast(e.message,COLORS.red);}
+  };
   const doUnfollow=async(uid)=>{
     try{
       await api(`/users/${uid}/unfollow`,"POST",null,token);
@@ -1521,6 +1565,32 @@ function FriendsTab({ token, user, showToast, onViewProfile }) {
           </div>
         ))
       }
+
+      {/* ── FOLLOW REQUESTS (private account owners) ── */}
+      {user.is_private&&followReqData.incoming&&followReqData.incoming.length>0&&<>
+        <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:10,marginTop:16,fontSize:13,letterSpacing:2}}>FOLLOW REQUESTS 🔒</div>
+        {followReqData.incoming.map(r=>{
+          const fu=r.from_user||{};
+          return (
+            <div key={r.id||r.from_id} style={{background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+              <div onClick={()=>onViewProfile&&onViewProfile(fu.id)} style={{display:"flex",alignItems:"center",gap:10,flex:1,cursor:"pointer"}}>
+                <div style={{width:40,height:40,borderRadius:14,background:normalizeColor(fu.avatar_bg)||COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:18,flexShrink:0,overflow:"hidden"}}>
+                  {fu.avatar_photo?<img src={fu.avatar_photo} style={{width:"100%",height:"100%",objectFit:"cover"}} />:(fu.avatar_letter||"?")}
+                </div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14,color:"var(--text)"}}>{fu.name||r.from_id}</div>
+                  <div style={{color:"var(--muted)",fontSize:12}}>{fu.handle||""}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
+                <button onClick={()=>acceptFollowReq(r.from_id)} style={{background:COLORS.green,color:"#000",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Accept</button>
+                <button onClick={()=>declineFollowReq(r.from_id)} style={{background:"#e0e0e0",color:"#111",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Decline</button>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{height:8}} />
+      </>}
 
       {/* ── FOLLOWING ── */}
       <div style={{fontWeight:700,color:COLORS.yellow,marginBottom:4,marginTop:24,fontSize:13,letterSpacing:2}}>FOLLOWING 👁</div>
